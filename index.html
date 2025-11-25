@@ -50,10 +50,8 @@
     <div id="dashboard" class="grid"></div>
 
     <script>
-        // *** 重要：請在此處填入您的環境部 API Key ***
-        // 如果沒有 Key，您可以去 https://data.moenv.gov.tw/ 申請
-        // 為了演示，我們使用公開測試連結，若失效請自行替換 Key
-        const API_KEY = " d62dcdf1-adf6-49dd-9c9c-b65b1556323d"; // 留空時，腳本會嘗試使用無 Key 的公開限制額度或提醒
+        // *** 已填入您的環境部 API Key ***
+        const API_KEY = "d62dcdf1-adf6-49dd-9c9c-b65b1556323d"; 
         
         const API_URL = `https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key=${API_KEY}`;
 
@@ -66,7 +64,6 @@
             dashboard.innerHTML = '';
 
             try {
-                // 如果您沒有填入 API Key，這個請求可能會因為次數限制而失敗
                 const res = await fetch(API_URL);
                 if (!res.ok) throw new Error("API 請求失敗，請檢查 API Key");
                 
@@ -78,7 +75,7 @@
                 loading.style.display = 'none';
 
             } catch (error) {
-                loading.innerHTML = `<span style="color:red">讀取失敗：${error.message}<br>請確認您是否有有效的環境部 API Key。</span>`;
+                loading.innerHTML = `<span style="color:red">讀取失敗：${error.message}<br>請確認 API Key 是否正確。</span>`;
                 console.error(error);
             }
         }
@@ -115,7 +112,6 @@
 
         function populateCounties() {
             const select = document.getElementById('countySelect');
-            // 只在第一次載入時填充選項，避免重置
             if (select.options.length > 1) return;
 
             const counties = [...new Set(allData.map(item => item.county))];
@@ -127,7 +123,6 @@
             });
         }
 
-        // 監聽縣市篩選
         document.getElementById('countySelect').addEventListener('change', (e) => {
             const selected = e.target.value;
             if (selected === 'all') {
@@ -138,7 +133,6 @@
             }
         });
 
-        // 初始化
         fetchData();
     </script>
 </body>

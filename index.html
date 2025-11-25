@@ -3,137 +3,249 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台灣空氣品質即時看板 (AQI)</title>
+    <title>台灣空氣品質地圖 (AQI)</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <style>
-        body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; padding: 20px; }
-        h1 { text-align: center; color: #2c3e50; }
+        body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
         
-        /* 控制區 */
-        .controls { text-align: center; margin-bottom: 30px; }
-        select { padding: 10px 15px; font-size: 16px; border-radius: 5px; border: 1px solid #ddd; }
-        button { padding: 10px 20px; font-size: 16px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:hover { background-color: #2980b9; }
-
-        /* 卡片網格 */
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        /* 頂部導航列 */
+        header { background-color: #2c3e50; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        h1 { margin: 0; font-size: 1.2rem; }
         
-        /* 空氣品質卡片 */
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; transition: transform 0.2s; }
-        .card:hover { transform: translateY(-5px); }
-        .card h3 { margin: 0 0 10px 0; font-size: 1.2em; }
-        .aqi-value { font-size: 2.5em; font-weight: bold; margin: 10px 0; }
-        .status { font-weight: bold; padding: 5px 10px; border-radius: 15px; color: white; display: inline-block; }
-        .time { font-size: 0.8em; color: #777; margin-top: 10px; }
+        /* 切換按鈕 */
+        .view-switch { display: flex; gap: 10px; }
+        .btn { padding: 8px 15px; border: none; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-active { background-color: #3498db; color: white; }
+        .btn-inactive { background-color: #ecf0f1; color: #2c3e50; }
 
-        /* AQI 顏色定義 */
-        .aqi-good { background-color: #009866; } /* 0-50 */
-        .aqi-moderate { background-color: #FFDE33; color: #333 !important; } /* 51-100 */
-        .aqi-sensitive { background-color: #FF9933; } /* 101-150 */
-        .aqi-unhealthy { background-color: #CC0033; } /* 151-200 */
-        .aqi-very-unhealthy { background-color: #660099; } /* 201-300 */
-        .aqi-hazardous { background-color: #7E0023; } /* 301+ */
+        /* 主內容區 */
+        #main-container { flex: 1; position: relative; overflow: hidden; }
+
+        /* 列表模式樣式 */
+        #list-view { padding: 20px; overflow-y: auto; height: 100%; box-sizing: border-box; display: none; } /* 預設隱藏 */
+        .controls { margin-bottom: 20px; text-align: center; }
+        select { padding: 8px; font-size: 16px; border-radius: 5px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-align: center; }
+        .aqi-value { font-size: 2em; font-weight: bold; margin: 5px 0; }
+        .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; color: white; font-size: 0.9em; }
+
+        /* 地圖模式樣式 */
+        #map-view { width: 100%; height: 100%; }
+
+        /* 載入中遮罩 */
+        #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 999; display: flex; justify-content: center; align-items: center; font-size: 1.5em; color: #2c3e50; }
+
+        /* 顏色定義 */
+        .aqi-1 { background-color: #009866; } /* 良好 */
+        .aqi-2 { background-color: #FFDE33; color: #333 !important; } /* 普通 */
+        .aqi-3 { background-color: #FF9933; } /* 敏感 */
+        .aqi-4 { background-color: #CC0033; } /* 不健康 */
+        .aqi-5 { background-color: #660099; } /* 非常不健康 */
+        .aqi-6 { background-color: #7E0023; } /* 危害 */
+
+        /* 地圖 Popup 樣式優化 */
+        .leaflet-popup-content-wrapper { border-radius: 10px; }
+        .popup-aqi { font-size: 1.5em; font-weight: bold; text-align: center; margin: 5px 0; }
     </style>
 </head>
 <body>
 
-    <h1>🇹🇼 台灣空氣品質即時看板</h1>
-    
-    <div class="controls">
-        <label for="countySelect">選擇縣市：</label>
-        <select id="countySelect">
-            <option value="all">全台灣</option>
-        </select>
-        <button onclick="fetchData()">重新整理</button>
+    <header>
+        <h1>🇹🇼 空氣品質地圖</h1>
+        <div class="view-switch">
+            <button id="btn-map" class="btn btn-active" onclick="switchView('map')">地圖模式</button>
+            <button id="btn-list" class="btn btn-inactive" onclick="switchView('list')">列表模式</button>
+        </div>
+    </header>
+
+    <div id="main-container">
+        <div id="loading">資料載入中...</div>
+        
+        <div id="map-view"></div>
+
+        <div id="list-view">
+            <div class="controls">
+                <select id="countySelect" onchange="filterList()">
+                    <option value="all">全台灣</option>
+                </select>
+                <button class="btn btn-active" onclick="fetchData()" style="padding: 8px 12px; font-size: 14px;">重新整理</button>
+            </div>
+            <div id="dashboard" class="grid"></div>
+        </div>
     </div>
 
-    <div id="loading" style="text-align:center;">載入中...</div>
-    <div id="dashboard" class="grid"></div>
-
     <script>
-        // *** 已填入您的環境部 API Key ***
-        const API_KEY = "d62dcdf1-adf6-49dd-9c9c-b65b1556323d"; 
-        
+        // 設定您的 API Key
+        const API_KEY = "d62dcdf1-adf6-49dd-9c9c-b65b1556323d";
         const API_URL = `https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key=${API_KEY}`;
 
         let allData = [];
+        let map;
+        let markersLayer; // 用來管理地圖上的標記群組
 
+        // 初始化
+        window.onload = () => {
+            initMap();
+            fetchData();
+        };
+
+        // 1. 初始化地圖
+        function initMap() {
+            // 設定地圖中心點 (台灣中心) 與縮放層級
+            map = L.map('map-view').setView([23.6, 121.0], 8);
+
+            // 加入 OpenStreetMap 圖資 (免費)
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            markersLayer = L.layerGroup().addTo(map);
+        }
+
+        // 2. 抓取資料
         async function fetchData() {
-            const dashboard = document.getElementById('dashboard');
             const loading = document.getElementById('loading');
-            loading.style.display = 'block';
-            dashboard.innerHTML = '';
+            loading.style.display = 'flex';
 
             try {
                 const res = await fetch(API_URL);
-                if (!res.ok) throw new Error("API 請求失敗，請檢查 API Key");
-                
+                if (!res.ok) throw new Error("API 連線失敗");
                 const json = await res.json();
                 allData = json.records;
-                
-                populateCounties();
-                renderData(allData);
-                loading.style.display = 'none';
 
+                updateMap(allData);
+                populateCounties(); // 列表模式的下拉選單
+                renderList(allData); // 列表模式的卡片
+                
+                loading.style.display = 'none';
             } catch (error) {
-                loading.innerHTML = `<span style="color:red">讀取失敗：${error.message}<br>請確認 API Key 是否正確。</span>`;
-                console.error(error);
+                alert("資料讀取失敗，請稍後再試。\n" + error.message);
+                loading.style.display = 'none';
             }
         }
 
-        function getAQIClass(aqi) {
-            if (aqi <= 50) return 'aqi-good';
-            if (aqi <= 100) return 'aqi-moderate';
-            if (aqi <= 150) return 'aqi-sensitive';
-            if (aqi <= 200) return 'aqi-unhealthy';
-            if (aqi <= 300) return 'aqi-very-unhealthy';
-            return 'aqi-hazardous';
+        // 3. 更新地圖上的點
+        function updateMap(data) {
+            markersLayer.clearLayers(); // 清除舊的點
+
+            data.forEach(site => {
+                // 檢查是否有經緯度資料
+                if (site.latitude && site.longitude) {
+                    const lat = parseFloat(site.latitude);
+                    const lon = parseFloat(site.longitude);
+                    const aqi = parseInt(site.aqi);
+                    const color = getAQIColor(aqi);
+
+                    // 建立圓形標記
+                    const marker = L.circleMarker([lat, lon], {
+                        radius: 10,
+                        fillColor: color,
+                        color: "#fff",
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.9
+                    });
+
+                    // 綁定彈出視窗 (Popup)
+                    const popupContent = `
+                        <div style="text-align:center; min-width: 100px;">
+                            <strong>${site.sitename}</strong> <span style="font-size:0.8em; color:#777">(${site.county})</span>
+                            <div class="popup-aqi" style="color:${color === '#FFDE33' ? '#d4b106' : color}">${site.aqi}</div>
+                            <div style="font-size:0.9em;">狀態: ${site.status}</div>
+                            <div style="font-size:0.8em; color:#666; margin-top:5px;">PM2.5: ${site['pm2.5']}</div>
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent);
+                    markersLayer.addLayer(marker);
+                }
+            });
         }
 
-        function renderData(data) {
+        // 4. 渲染列表模式
+        function renderList(data) {
             const dashboard = document.getElementById('dashboard');
             dashboard.innerHTML = '';
 
             data.forEach(site => {
                 const aqi = parseInt(site.aqi);
-                const statusClass = getAQIClass(aqi);
-                
+                const colorClass = getAQIClass(aqi);
+                const colorHex = getAQIColor(aqi);
+
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
-                    <h3>${site.sitename} <span style="font-size:0.6em; color:#666">(${site.county})</span></h3>
-                    <div class="aqi-value" style="color:${aqi <= 100 && aqi > 50 ? '#d4b106' : 'inherit'}">${site.aqi}</div>
-                    <div class="status ${statusClass}">${site.status}</div>
-                    <div class="time">更新：${site.publishtime}</div>
-                    <div style="margin-top:5px; font-size:0.9em;">PM2.5: ${site['pm2.5']}</div>
+                    <h3>${site.sitename}</h3>
+                    <div class="aqi-value" style="color:${colorHex === '#FFDE33' ? '#d4b106' : colorHex}">${site.aqi}</div>
+                    <div class="status-badge ${colorClass}">${site.status}</div>
+                    <div style="font-size:0.8em; margin-top:10px; color:#777">${site.county}</div>
                 `;
                 dashboard.appendChild(card);
             });
         }
 
+        // 輔助功能：顏色代碼
+        function getAQIColor(aqi) {
+            if (aqi <= 50) return '#009866';
+            if (aqi <= 100) return '#FFDE33';
+            if (aqi <= 150) return '#FF9933';
+            if (aqi <= 200) return '#CC0033';
+            if (aqi <= 300) return '#660099';
+            return '#7E0023';
+        }
+
+        // 輔助功能：CSS 類別
+        function getAQIClass(aqi) {
+            if (aqi <= 50) return 'aqi-1';
+            if (aqi <= 100) return 'aqi-2';
+            if (aqi <= 150) return 'aqi-3';
+            if (aqi <= 200) return 'aqi-4';
+            if (aqi <= 300) return 'aqi-5';
+            return 'aqi-6';
+        }
+
+        // 介面切換邏輯
+        function switchView(mode) {
+            const mapView = document.getElementById('map-view');
+            const listView = document.getElementById('list-view');
+            const btnMap = document.getElementById('btn-map');
+            const btnList = document.getElementById('btn-list');
+
+            if (mode === 'map') {
+                mapView.style.display = 'block';
+                listView.style.display = 'none';
+                btnMap.className = 'btn btn-active';
+                btnList.className = 'btn btn-inactive';
+                setTimeout(() => { map.invalidateSize(); }, 100); // 修正地圖顯示問題
+            } else {
+                mapView.style.display = 'none';
+                listView.style.display = 'block';
+                btnMap.className = 'btn btn-inactive';
+                btnList.className = 'btn btn-active';
+            }
+        }
+
+        // 列表篩選邏輯
         function populateCounties() {
             const select = document.getElementById('countySelect');
             if (select.options.length > 1) return;
-
             const counties = [...new Set(allData.map(item => item.county))];
-            counties.forEach(county => {
-                const option = document.createElement('option');
-                option.value = county;
-                option.innerText = county;
-                select.appendChild(option);
+            counties.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.innerText = c;
+                select.appendChild(opt);
             });
         }
 
-        document.getElementById('countySelect').addEventListener('change', (e) => {
-            const selected = e.target.value;
-            if (selected === 'all') {
-                renderData(allData);
-            } else {
-                const filtered = allData.filter(item => item.county === selected);
-                renderData(filtered);
-            }
-        });
-
-        fetchData();
+        function filterList() {
+            const val = document.getElementById('countySelect').value;
+            if (val === 'all') renderList(allData);
+            else renderList(allData.filter(d => d.county === val));
+        }
     </script>
 </body>
 </html>

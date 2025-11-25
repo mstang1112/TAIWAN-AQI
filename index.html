@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>台灣空氣品質地圖 V5</title>
+    <title>台灣空氣 V6 (極速版)</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -12,7 +12,6 @@
     <style>
         body { font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
         
-        /* Header 優化：加入時間顯示 */
         header { background-color: #2c3e50; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000;}
         .title-group { display: flex; flex-direction: column; }
         h1 { margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 5px; }
@@ -41,8 +40,10 @@
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .card-aqi { font-size: 2.2em; font-weight: 800; margin: 5px 0; }
         
-        /* 首次載入遮罩 */
-        #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        /* 載入遮罩 (改為半透明且非強制阻擋) */
+        #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s; pointer-events: none; opacity: 0; }
+        #loading.show { opacity: 1; pointer-events: all; }
+        
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #2c3e50; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
@@ -67,7 +68,7 @@
 
     <header>
         <div class="title-group">
-            <h1><i class="fa-solid fa-location-dot"></i> 台灣空氣 V5</h1>
+            <h1><i class="fa-solid fa-bolt"></i> 台灣空氣 V6</h1>
             <div id="update-time" class="update-time">等待更新...</div>
         </div>
         <div class="view-switch">
@@ -77,7 +78,7 @@
     </header>
 
     <div id="main-container">
-        <div id="loading">
+        <div id="loading" class="show">
             <div class="spinner"></div>
             <div>資料同步中...</div>
         </div>
@@ -97,8 +98,8 @@
     <script>
         const API_KEY = "d62dcdf1-adf6-49dd-9c9c-b65b1556323d"; 
         const API_URL = `https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key=${API_KEY}`;
-        // 設定自動更新間隔 (毫秒)：600000 = 10分鐘
-        const AUTO_UPDATE_INTERVAL = 600000; 
+        const CACHE_KEY = "AQI_DATA_CACHE";
+        const CACHE_TIME_KEY = "AQI_LAST_UPDATE";
 
         let map, markersLayer, userMarker;
         let allData = [];
@@ -106,59 +107,89 @@
 
         window.onload = () => {
             initMap();
-            fetchData(true); // true 代表是首次載入
             
-            // 啟動定時器
+            // 1. 策略：如果有快取，先顯示快取 (秒開)
+            const cachedData = loadFromCache();
+            if (cachedData) {
+                console.log("使用快取資料快速渲染");
+                allData = cachedData;
+                renderMap(allData);
+                renderList(allData);
+                document.getElementById('loading').classList.remove('show'); // 立刻關閉遮罩
+                
+                // 更新顯示快取的時間
+                const lastTime = localStorage.getItem(CACHE_TIME_KEY);
+                if(lastTime) document.getElementById('update-time').innerText = `${lastTime} (快取)`;
+            }
+
+            // 2. 然後在背景抓新資料 (更新)
+            fetchData(cachedData ? false : true); // 如果有快取，fetchData 就不要顯示遮罩
+
+            // 3. 每 10 分鐘自動更新
             autoUpdateTimer = setInterval(() => {
-                fetchData(false); // false 代表是背景自動更新
-            }, AUTO_UPDATE_INTERVAL);
+                fetchData(false);
+            }, 600000); 
         };
 
         function initMap() {
             map = L.map('map-view', { zoomControl: false }).setView([23.7, 121.0], 7);
             L.control.zoom({ position: 'bottomleft' }).addTo(map);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors'
+                attribution: '&copy; OpenStreetMap'
             }).addTo(map);
             markersLayer = L.layerGroup().addTo(map);
         }
 
-        // 修改後的 fetchData，增加 isFirstLoad 參數
-        async function fetchData(isFirstLoad) {
+        async function fetchData(showLoading) {
             const timeDisplay = document.getElementById('update-time');
+            const loadingEl = document.getElementById('loading');
             
-            if (!isFirstLoad) {
-                timeDisplay.innerText = "更新中...";
-            }
+            if (showLoading) loadingEl.classList.add('show');
+            timeDisplay.innerText = "連線中...";
 
             try {
-                // 加上時間戳記避免瀏覽器快取舊資料
+                // 加上 timestamp 防止瀏覽器快取 API request
                 const res = await fetch(`${API_URL}&t=${new Date().getTime()}`);
+                if (!res.ok) throw new Error("API Error");
+                
                 const json = await res.json();
                 allData = json.records;
                 
+                // 渲染畫面
                 renderMap(allData);
                 renderList(allData);
                 
-                // 更新時間顯示
+                // 儲存到快取
+                saveToCache(allData);
+
+                // 更新時間
                 const now = new Date();
                 const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
                 timeDisplay.innerText = `${timeString} 更新`;
+                localStorage.setItem(CACHE_TIME_KEY, timeString);
 
-                // 只有首次載入需要關閉大遮罩
-                if (isFirstLoad) {
-                    document.getElementById('loading').style.display = 'none';
-                }
             } catch (e) {
                 console.error(e);
-                if (isFirstLoad) {
-                    alert("數據載入失敗，請檢查網路");
-                    document.getElementById('loading').style.display = 'none';
-                } else {
-                    timeDisplay.innerText = "更新失敗";
-                }
+                timeDisplay.innerText = "更新失敗";
+            } finally {
+                loadingEl.classList.remove('show');
             }
         }
+
+        // --- 快取功能區 ---
+        function saveToCache(data) {
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+            } catch (e) { console.error("Cache save failed", e); }
+        }
+
+        function loadFromCache() {
+            try {
+                const json = localStorage.getItem(CACHE_KEY);
+                return json ? JSON.parse(json) : null;
+            } catch (e) { return null; }
+        }
+        // ------------------
 
         function getAQIInfo(aqi) {
             if (aqi <= 50) return { color: '#009866', class: 'bg-good', text: '良好', advice: '😊 空氣不錯，適合戶外活動' };
@@ -170,6 +201,10 @@
         }
 
         function renderMap(data) {
+            // 為了效能，只有在資料真的有變動時才重繪，但這裡為了簡單邏輯，我們使用清空重繪
+            // V6 優化：在 clearLayers 前先檢查是否有資料
+            if(!data || data.length === 0) return;
+
             markersLayer.clearLayers();
             data.forEach(site => {
                 if (!site.latitude || !site.longitude) return;
@@ -181,10 +216,102 @@
                 marker.bindPopup(generatePopupContent(site, info, false), { className: 'custom-popup' });
                 markersLayer.addLayer(marker);
             });
-            // 若使用者已定位，重新整理時也要更新使用者頭上的數據
-            if (userMarker && userMarker.getPopup().isOpen()) {
-                // 這裡簡單處理：使用者若想看最新最近數據，通常會再按一次定位
-            }
         }
 
-        function generatePopupContent(site, info, is
+        function generatePopupContent(site, info, isNearestLabel) {
+            const labelHtml = isNearestLabel ? `<div class="nearest-badge">📍 離您最近的測站</div><br>` : '';
+            return `
+                <div class="popup-header" style="background:${info.color}; color:${parseInt(site.aqi)>50 && parseInt(site.aqi)<=100 ? '#333':'#fff'}">
+                    ${site.sitename} <span style="font-size:0.8em">AQI ${site.aqi}</span>
+                </div>
+                <div class="popup-body">
+                    ${labelHtml}
+                    <div style="font-weight:bold; font-size:1.2em; margin-bottom:5px;">${info.text}</div>
+                    <div style="font-size:0.85em; display:flex; justify-content:space-around; color:#555;">
+                        <span>PM2.5: <b>${site["pm2.5"]}</b></span>
+                        <span>PM10: <b>${site.pm10}</b></span>
+                    </div>
+                    <div class="advice-text">${info.advice}</div>
+                </div>
+            `;
+        }
+
+        function renderList(data) {
+            const dashboard = document.getElementById('dashboard');
+            dashboard.innerHTML = '';
+            const sortedData = [...data].sort((a, b) => parseInt(b.aqi) - parseInt(a.aqi));
+            sortedData.forEach(site => {
+                const aqi = parseInt(site.aqi);
+                const info = getAQIInfo(aqi);
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="card-header">
+                        <strong>${site.sitename}</strong><span style="font-size:0.8em; color:#888">${site.county}</span>
+                    </div>
+                    <div class="card-aqi" style="color:${info.color === '#FFDE33' ? '#d4b106' : info.color}">${site.aqi}</div>
+                    <div class="card-status ${info.class}" style="color:white; padding:2px 8px; border-radius:10px;">${info.text}</div>
+                `;
+                dashboard.appendChild(card);
+            });
+        }
+
+        function switchView(mode) {
+            document.getElementById('map-view').style.display = mode === 'map' ? 'block' : 'none';
+            document.getElementById('list-view').style.display = mode === 'list' ? 'block' : 'none';
+            document.querySelector('.gps-btn').style.display = mode === 'map' ? 'flex' : 'none';
+            document.getElementById('btn-map').className = mode === 'map' ? 'btn active' : 'btn';
+            document.getElementById('btn-list').className = mode === 'list' ? 'btn active' : 'btn';
+            if(mode === 'map') map.invalidateSize();
+        }
+
+        function filterList() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            renderList(allData.filter(d => d.sitename.includes(term) || d.county.includes(term)));
+        }
+
+        function findNearestStation(lat, lng) {
+            let nearest = null;
+            let minDistance = Infinity;
+            allData.forEach(site => {
+                if (site.latitude && site.longitude) {
+                    const dist = map.distance([lat, lng], [site.latitude, site.longitude]);
+                    if (dist < minDistance) { minDistance = dist; nearest = site; }
+                }
+            });
+            return { station: nearest, distance: minDistance };
+        }
+
+        function locateUser() {
+            if (!navigator.geolocation) { alert("瀏覽器不支援定位"); return; }
+            const gpsBtn = document.querySelector('.gps-btn');
+            gpsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                map.setView([lat, lng], 14);
+                const result = findNearestStation(lat, lng);
+                const nearestSite = result.station;
+                const distKm = (result.distance / 1000).toFixed(1);
+                
+                let popupContent = "您在這裡";
+                if (nearestSite) {
+                    const info = getAQIInfo(parseInt(nearestSite.aqi));
+                    popupContent = generatePopupContent(nearestSite, info, true);
+                    popupContent += `<div style="text-align:center; font-size:0.8em; color:#999; margin-top:5px;">(距離測站 ${distKm} 公里)</div>`;
+                }
+                if (userMarker) map.removeLayer(userMarker);
+                userMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'user-loc',
+                        html: '<i class="fa-solid fa-street-view" style="color:#2980b9; font-size:36px; text-shadow: 2px 2px 2px white;"></i>',
+                        iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -35]
+                    })
+                }).addTo(map);
+                userMarker.bindPopup(popupContent, { className: 'custom-popup' }).openPopup();
+                gpsBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i>';
+            }, () => { alert("定位失敗"); gpsBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i>'; });
+        }
+    </script>
+</body>
+</html>

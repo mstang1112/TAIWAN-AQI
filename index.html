@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>台灣空氣品質地圖 V4</title>
+    <title>台灣空氣品質地圖 V5</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -12,11 +12,14 @@
     <style>
         body { font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
         
+        /* Header 優化：加入時間顯示 */
         header { background-color: #2c3e50; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000;}
+        .title-group { display: flex; flex-direction: column; }
         h1 { margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 5px; }
+        .update-time { font-size: 0.75rem; color: #bdc3c7; margin-top: 2px; }
         
-        .view-switch { display: flex; background: rgba(255,255,255,0.2); border-radius: 20px; padding: 2px; }
-        .btn { padding: 6px 12px; border: none; border-radius: 18px; cursor: pointer; font-size: 0.9rem; transition: 0.2s; background: transparent; color: rgba(255,255,255,0.7); }
+        .view-switch { display: flex; background: rgba(255,255,255,0.2); border-radius: 20px; padding: 2px; margin-left: 10px;}
+        .btn { padding: 6px 12px; border: none; border-radius: 18px; cursor: pointer; font-size: 0.9rem; transition: 0.2s; background: transparent; color: rgba(255,255,255,0.7); white-space: nowrap; }
         .btn.active { background-color: white; color: #2c3e50; font-weight: bold; }
 
         #main-container { flex: 1; position: relative; overflow: hidden; }
@@ -31,16 +34,14 @@
         }
         .gps-btn:active { transform: scale(0.9); }
 
-        /* 列表模式 */
         #list-view { padding: 15px; overflow-y: auto; height: 100%; box-sizing: border-box; display: none; background: #f0f2f5; }
         .search-box { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); text-align: center; }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .card-aqi { font-size: 2.2em; font-weight: 800; margin: 5px 0; }
-        .card-status { font-size: 0.9em; padding: 3px 8px; border-radius: 10px; color: white; display: inline-block;}
         
-        /* 載入遮罩 */
+        /* 首次載入遮罩 */
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #2c3e50; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -53,7 +54,7 @@
         .bg-very { background: #660099; }
         .bg-haz { background: #7E0023; }
 
-        /* Popup 優化 */
+        /* Popup Styles */
         .custom-popup .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 8px; }
         .custom-popup .leaflet-popup-content { margin: 0; width: 220px !important; }
         .popup-header { padding: 10px; color: white; text-align: center; font-weight: bold; font-size: 1.1em;}
@@ -65,7 +66,10 @@
 <body>
 
     <header>
-        <h1><i class="fa-solid fa-location-dot"></i> 台灣空氣 V4</h1>
+        <div class="title-group">
+            <h1><i class="fa-solid fa-location-dot"></i> 台灣空氣 V5</h1>
+            <div id="update-time" class="update-time">等待更新...</div>
+        </div>
         <div class="view-switch">
             <button id="btn-map" class="btn active" onclick="switchView('map')">地圖</button>
             <button id="btn-list" class="btn" onclick="switchView('list')">列表</button>
@@ -93,40 +97,66 @@
     <script>
         const API_KEY = "d62dcdf1-adf6-49dd-9c9c-b65b1556323d"; 
         const API_URL = `https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key=${API_KEY}`;
+        // 設定自動更新間隔 (毫秒)：600000 = 10分鐘
+        const AUTO_UPDATE_INTERVAL = 600000; 
 
-        let map, markersLayer, userMarker, userRangeCircle;
+        let map, markersLayer, userMarker;
         let allData = [];
+        let autoUpdateTimer;
 
         window.onload = () => {
             initMap();
-            fetchData();
+            fetchData(true); // true 代表是首次載入
+            
+            // 啟動定時器
+            autoUpdateTimer = setInterval(() => {
+                fetchData(false); // false 代表是背景自動更新
+            }, AUTO_UPDATE_INTERVAL);
         };
 
         function initMap() {
-            // 中心點預設在台灣
             map = L.map('map-view', { zoomControl: false }).setView([23.7, 121.0], 7);
             L.control.zoom({ position: 'bottomleft' }).addTo(map);
-
-            // 改回標準 OpenStreetMap，以確保顯示繁體中文
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
-
             markersLayer = L.layerGroup().addTo(map);
         }
 
-        async function fetchData() {
+        // 修改後的 fetchData，增加 isFirstLoad 參數
+        async function fetchData(isFirstLoad) {
+            const timeDisplay = document.getElementById('update-time');
+            
+            if (!isFirstLoad) {
+                timeDisplay.innerText = "更新中...";
+            }
+
             try {
-                const res = await fetch(API_URL);
+                // 加上時間戳記避免瀏覽器快取舊資料
+                const res = await fetch(`${API_URL}&t=${new Date().getTime()}`);
                 const json = await res.json();
                 allData = json.records;
                 
                 renderMap(allData);
                 renderList(allData);
-                document.getElementById('loading').style.display = 'none';
+                
+                // 更新時間顯示
+                const now = new Date();
+                const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                timeDisplay.innerText = `${timeString} 更新`;
+
+                // 只有首次載入需要關閉大遮罩
+                if (isFirstLoad) {
+                    document.getElementById('loading').style.display = 'none';
+                }
             } catch (e) {
-                alert("數據載入失敗，請檢查網路連線");
-                document.getElementById('loading').style.display = 'none';
+                console.error(e);
+                if (isFirstLoad) {
+                    alert("數據載入失敗，請檢查網路");
+                    document.getElementById('loading').style.display = 'none';
+                } else {
+                    timeDisplay.innerText = "更新失敗";
+                }
             }
         }
 
@@ -143,172 +173,18 @@
             markersLayer.clearLayers();
             data.forEach(site => {
                 if (!site.latitude || !site.longitude) return;
-                
                 const aqi = parseInt(site.aqi);
                 const info = getAQIInfo(aqi);
-
                 const marker = L.circleMarker([site.latitude, site.longitude], {
                     radius: 7, fillColor: info.color, color: '#fff', weight: 1, fillOpacity: 0.8
                 });
-
-                // 測站本身的 Popup
-                const popupHtml = generatePopupContent(site, info, false);
-                marker.bindPopup(popupHtml, { className: 'custom-popup' });
+                marker.bindPopup(generatePopupContent(site, info, false), { className: 'custom-popup' });
                 markersLayer.addLayer(marker);
             });
-        }
-
-        // 產生 Popup 內容的共用函數
-        function generatePopupContent(site, info, isNearestLabel) {
-            const labelHtml = isNearestLabel ? `<div class="nearest-badge">📍 離您最近的測站</div><br>` : '';
-            return `
-                <div class="popup-header" style="background:${info.color}; color:${parseInt(site.aqi)>50 && parseInt(site.aqi)<=100 ? '#333':'#fff'}">
-                    ${site.sitename} <span style="font-size:0.8em">AQI ${site.aqi}</span>
-                </div>
-                <div class="popup-body">
-                    ${labelHtml}
-                    <div style="font-weight:bold; font-size:1.2em; margin-bottom:5px;">${info.text}</div>
-                    <div style="font-size:0.85em; display:flex; justify-content:space-around; color:#555;">
-                        <span>PM2.5: <b>${site["pm2.5"]}</b></span>
-                        <span>PM10: <b>${site.pm10}</b></span>
-                    </div>
-                    <div class="advice-text">${info.advice}</div>
-                </div>
-            `;
-        }
-
-        function renderList(data) {
-            const dashboard = document.getElementById('dashboard');
-            dashboard.innerHTML = '';
-            // 排序：空氣越差越前面
-            const sortedData = [...data].sort((a, b) => parseInt(b.aqi) - parseInt(a.aqi));
-
-            sortedData.forEach(site => {
-                const aqi = parseInt(site.aqi);
-                const info = getAQIInfo(aqi);
-
-                const card = document.createElement('div');
-                card.className = 'card';
-                card.innerHTML = `
-                    <div class="card-header">
-                        <strong>${site.sitename}</strong>
-                        <span style="font-size:0.8em; color:#888">${site.county}</span>
-                    </div>
-                    <div class="card-aqi" style="color:${info.color === '#FFDE33' ? '#d4b106' : info.color}">
-                        ${site.aqi}
-                    </div>
-                    <div class="card-status ${info.class}">${info.text}</div>
-                `;
-                dashboard.appendChild(card);
-            });
-        }
-
-        function switchView(mode) {
-            const mapEl = document.getElementById('map-view');
-            const listEl = document.getElementById('list-view');
-            const btnMap = document.getElementById('btn-map');
-            const btnList = document.getElementById('btn-list');
-            const gpsBtn = document.querySelector('.gps-btn');
-
-            if (mode === 'map') {
-                mapEl.style.display = 'block';
-                gpsBtn.style.display = 'flex';
-                listEl.style.display = 'none';
-                btnMap.classList.add('active');
-                btnList.classList.remove('active');
-                map.invalidateSize();
-            } else {
-                mapEl.style.display = 'none';
-                gpsBtn.style.display = 'none';
-                listEl.style.display = 'block';
-                btnMap.classList.remove('active');
-                btnList.classList.add('active');
+            // 若使用者已定位，重新整理時也要更新使用者頭上的數據
+            if (userMarker && userMarker.getPopup().isOpen()) {
+                // 這裡簡單處理：使用者若想看最新最近數據，通常會再按一次定位
             }
         }
 
-        function filterList() {
-            const term = document.getElementById('searchInput').value.toLowerCase();
-            const filtered = allData.filter(d => 
-                d.sitename.includes(term) || d.county.includes(term)
-            );
-            renderList(filtered);
-        }
-
-        // V4 新增：計算距離並尋找最近測站
-        function findNearestStation(lat, lng) {
-            let nearest = null;
-            let minDistance = Infinity;
-
-            allData.forEach(site => {
-                if (site.latitude && site.longitude) {
-                    const dist = map.distance([lat, lng], [site.latitude, site.longitude]);
-                    if (dist < minDistance) {
-                        minDistance = dist;
-                        nearest = site;
-                    }
-                }
-            });
-            return { station: nearest, distance: minDistance };
-        }
-
-        // 定位邏輯
-        function locateUser() {
-            if (!navigator.geolocation) {
-                alert("瀏覽器不支援定位");
-                return;
-            }
-
-            const gpsBtn = document.querySelector('.gps-btn');
-            gpsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    const lat = pos.coords.latitude;
-                    const lng = pos.coords.longitude;
-
-                    // 1. 移動地圖
-                    map.setView([lat, lng], 14);
-
-                    // 2. 找到最近測站
-                    const result = findNearestStation(lat, lng);
-                    const nearestSite = result.station;
-                    const distKm = (result.distance / 1000).toFixed(1);
-
-                    // 3. 準備 Popup 內容
-                    let popupContent = "您在這裡";
-                    if (nearestSite) {
-                        const aqi = parseInt(nearestSite.aqi);
-                        const info = getAQIInfo(aqi);
-                        // 使用最近測站的數據來當作使用者當前的狀態顯示
-                        popupContent = generatePopupContent(nearestSite, info, true);
-                        popupContent += `<div style="text-align:center; font-size:0.8em; color:#999; margin-top:5px;">(距離測站 ${distKm} 公里)</div>`;
-                    }
-
-                    // 4. 更新地圖標記
-                    if (userMarker) map.removeLayer(userMarker);
-                    
-                    // 這裡使用一個顯眼的藍色圖標代表使用者
-                    userMarker = L.marker([lat, lng], {
-                        icon: L.divIcon({
-                            className: 'user-loc',
-                            html: '<i class="fa-solid fa-street-view" style="color:#2980b9; font-size:36px; text-shadow: 2px 2px 2px white;"></i>',
-                            iconSize: [36, 36],
-                            iconAnchor: [18, 36],
-                            popupAnchor: [0, -35]
-                        })
-                    }).addTo(map);
-
-                    // 5. 自動打開 Popup 顯示數據
-                    userMarker.bindPopup(popupContent, { className: 'custom-popup' }).openPopup();
-
-                    gpsBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i>';
-                },
-                (err) => {
-                    alert("定位失敗，請確認是否允許存取位置權限。");
-                    gpsBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i>';
-                }
-            );
-        }
-    </script>
-</body>
-</html>
+        function generatePopupContent(site, info, is

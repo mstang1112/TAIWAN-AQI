@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣空氣品質即時看板 (AQI)</title>
+    <style>
+        body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; padding: 20px; }
+        h1 { text-align: center; color: #2c3e50; }
+        
+        /* 控制區 */
+        .controls { text-align: center; margin-bottom: 30px; }
+        select { padding: 10px 15px; font-size: 16px; border-radius: 5px; border: 1px solid #ddd; }
+        button { padding: 10px 20px; font-size: 16px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #2980b9; }
+
+        /* 卡片網格 */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        
+        /* 空氣品質卡片 */
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; transition: transform 0.2s; }
+        .card:hover { transform: translateY(-5px); }
+        .card h3 { margin: 0 0 10px 0; font-size: 1.2em; }
+        .aqi-value { font-size: 2.5em; font-weight: bold; margin: 10px 0; }
+        .status { font-weight: bold; padding: 5px 10px; border-radius: 15px; color: white; display: inline-block; }
+        .time { font-size: 0.8em; color: #777; margin-top: 10px; }
+
+        /* AQI 顏色定義 */
+        .aqi-good { background-color: #009866; } /* 0-50 */
+        .aqi-moderate { background-color: #FFDE33; color: #333 !important; } /* 51-100 */
+        .aqi-sensitive { background-color: #FF9933; } /* 101-150 */
+        .aqi-unhealthy { background-color: #CC0033; } /* 151-200 */
+        .aqi-very-unhealthy { background-color: #660099; } /* 201-300 */
+        .aqi-hazardous { background-color: #7E0023; } /* 301+ */
+    </style>
+</head>
+<body>
+
+    <h1>🇹🇼 台灣空氣品質即時看板</h1>
+    
+    <div class="controls">
+        <label for="countySelect">選擇縣市：</label>
+        <select id="countySelect">
+            <option value="all">全台灣</option>
+        </select>
+        <button onclick="fetchData()">重新整理</button>
+    </div>
+
+    <div id="loading" style="text-align:center;">載入中...</div>
+    <div id="dashboard" class="grid"></div>
+
+    <script>
+        // *** 重要：請在此處填入您的環境部 API Key ***
+        // 如果沒有 Key，您可以去 https://data.moenv.gov.tw/ 申請
+        // 為了演示，我們使用公開測試連結，若失效請自行替換 Key
+        const API_KEY = " d62dcdf1-adf6-49dd-9c9c-b65b1556323d"; // 留空時，腳本會嘗試使用無 Key 的公開限制額度或提醒
+        
+        const API_URL = `https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key=${API_KEY}`;
+
+        let allData = [];
+
+        async function fetchData() {
+            const dashboard = document.getElementById('dashboard');
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
+            dashboard.innerHTML = '';
+
+            try {
+                // 如果您沒有填入 API Key，這個請求可能會因為次數限制而失敗
+                const res = await fetch(API_URL);
+                if (!res.ok) throw new Error("API 請求失敗，請檢查 API Key");
+                
+                const json = await res.json();
+                allData = json.records;
+                
+                populateCounties();
+                renderData(allData);
+                loading.style.display = 'none';
+
+            } catch (error) {
+                loading.innerHTML = `<span style="color:red">讀取失敗：${error.message}<br>請確認您是否有有效的環境部 API Key。</span>`;
+                console.error(error);
+            }
+        }
+
+        function getAQIClass(aqi) {
+            if (aqi <= 50) return 'aqi-good';
+            if (aqi <= 100) return 'aqi-moderate';
+            if (aqi <= 150) return 'aqi-sensitive';
+            if (aqi <= 200) return 'aqi-unhealthy';
+            if (aqi <= 300) return 'aqi-very-unhealthy';
+            return 'aqi-hazardous';
+        }
+
+        function renderData(data) {
+            const dashboard = document.getElementById('dashboard');
+            dashboard.innerHTML = '';
+
+            data.forEach(site => {
+                const aqi = parseInt(site.aqi);
+                const statusClass = getAQIClass(aqi);
+                
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <h3>${site.sitename} <span style="font-size:0.6em; color:#666">(${site.county})</span></h3>
+                    <div class="aqi-value" style="color:${aqi <= 100 && aqi > 50 ? '#d4b106' : 'inherit'}">${site.aqi}</div>
+                    <div class="status ${statusClass}">${site.status}</div>
+                    <div class="time">更新：${site.publishtime}</div>
+                    <div style="margin-top:5px; font-size:0.9em;">PM2.5: ${site['pm2.5']}</div>
+                `;
+                dashboard.appendChild(card);
+            });
+        }
+
+        function populateCounties() {
+            const select = document.getElementById('countySelect');
+            // 只在第一次載入時填充選項，避免重置
+            if (select.options.length > 1) return;
+
+            const counties = [...new Set(allData.map(item => item.county))];
+            counties.forEach(county => {
+                const option = document.createElement('option');
+                option.value = county;
+                option.innerText = county;
+                select.appendChild(option);
+            });
+        }
+
+        // 監聽縣市篩選
+        document.getElementById('countySelect').addEventListener('change', (e) => {
+            const selected = e.target.value;
+            if (selected === 'all') {
+                renderData(allData);
+            } else {
+                const filtered = allData.filter(item => item.county === selected);
+                renderData(filtered);
+            }
+        });
+
+        // 初始化
+        fetchData();
+    </script>
+</body>
+</html>

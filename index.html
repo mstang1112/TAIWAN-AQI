@@ -2,249 +2,271 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台灣空氣品質地圖 (AQI)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>台灣空氣品質地圖 V3</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
         body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
         
-        /* 頂部導航列 */
-        header { background-color: #2c3e50; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        h1 { margin: 0; font-size: 1.2rem; }
+        header { background-color: #2c3e50; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000;}
+        h1 { margin: 0; font-size: 1.1rem; display: flex; align-items: center; gap: 5px; }
         
         /* 切換按鈕 */
-        .view-switch { display: flex; gap: 10px; }
-        .btn { padding: 8px 15px; border: none; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-active { background-color: #3498db; color: white; }
-        .btn-inactive { background-color: #ecf0f1; color: #2c3e50; }
+        .view-switch { display: flex; background: rgba(255,255,255,0.2); border-radius: 20px; padding: 2px; }
+        .btn { padding: 6px 12px; border: none; border-radius: 18px; cursor: pointer; font-size: 0.9rem; transition: 0.2s; background: transparent; color: rgba(255,255,255,0.7); }
+        .btn.active { background-color: white; color: #2c3e50; font-weight: bold; shadow: 0 2px 4px rgba(0,0,0,0.2); }
 
-        /* 主內容區 */
         #main-container { flex: 1; position: relative; overflow: hidden; }
 
-        /* 列表模式樣式 */
-        #list-view { padding: 20px; overflow-y: auto; height: 100%; box-sizing: border-box; display: none; } /* 預設隱藏 */
-        .controls { margin-bottom: 20px; text-align: center; }
-        select { padding: 8px; font-size: 16px; border-radius: 5px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
-        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-align: center; }
-        .aqi-value { font-size: 2em; font-weight: bold; margin: 5px 0; }
-        .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; color: white; font-size: 0.9em; }
+        /* 地圖 GPS 按鈕 */
+        .gps-btn {
+            position: absolute; bottom: 20px; right: 20px; z-index: 999;
+            background: white; border: none; width: 50px; height: 50px;
+            border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            cursor: pointer; font-size: 1.5rem; color: #3498db;
+            display: flex; justify-content: center; align-items: center;
+            transition: transform 0.2s;
+        }
+        .gps-btn:active { transform: scale(0.9); }
 
-        /* 地圖模式樣式 */
-        #map-view { width: 100%; height: 100%; }
+        /* 列表模式 */
+        #list-view { padding: 15px; overflow-y: auto; height: 100%; box-sizing: border-box; display: none; background: #f0f2f5; }
+        
+        .search-box { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
 
-        /* 載入中遮罩 */
-        #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 999; display: flex; justify-content: center; align-items: center; font-size: 1.5em; color: #2c3e50; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); text-align: center; position: relative; overflow: hidden; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        .card-aqi { font-size: 2.2em; font-weight: 800; margin: 5px 0; }
+        .card-status { font-size: 0.9em; padding: 3px 8px; border-radius: 10px; color: white; display: inline-block;}
+        
+        /* 載入遮罩 */
+        #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* 顏色定義 */
-        .aqi-1 { background-color: #009866; } /* 良好 */
-        .aqi-2 { background-color: #FFDE33; color: #333 !important; } /* 普通 */
-        .aqi-3 { background-color: #FF9933; } /* 敏感 */
-        .aqi-4 { background-color: #CC0033; } /* 不健康 */
-        .aqi-5 { background-color: #660099; } /* 非常不健康 */
-        .aqi-6 { background-color: #7E0023; } /* 危害 */
+        /* AQI Colors */
+        .c-good { color: #009866; } .bg-good { background: #009866; }
+        .c-mod { color: #d4b106; } .bg-mod { background: #FFDE33; color: #333 !important; }
+        .c-sen { color: #FF9933; } .bg-sen { background: #FF9933; }
+        .c-un { color: #CC0033; } .bg-un { background: #CC0033; }
+        .c-very { color: #660099; } .bg-very { background: #660099; }
+        .c-haz { color: #7E0023; } .bg-haz { background: #7E0023; }
 
-        /* 地圖 Popup 樣式優化 */
-        .leaflet-popup-content-wrapper { border-radius: 10px; }
-        .popup-aqi { font-size: 1.5em; font-weight: bold; text-align: center; margin: 5px 0; }
+        /* Popup 優化 */
+        .custom-popup .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 8px; }
+        .custom-popup .leaflet-popup-content { margin: 0; width: 200px !important; }
+        .popup-header { padding: 10px; color: white; text-align: center; font-weight: bold; }
+        .popup-body { padding: 15px; text-align: center; }
+        .advice-text { font-size: 0.9em; margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; color: #555; }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>🇹🇼 空氣品質地圖</h1>
+        <h1><i class="fa-solid fa-wind"></i> 台灣空氣 V3</h1>
         <div class="view-switch">
-            <button id="btn-map" class="btn btn-active" onclick="switchView('map')">地圖模式</button>
-            <button id="btn-list" class="btn btn-inactive" onclick="switchView('list')">列表模式</button>
+            <button id="btn-map" class="btn active" onclick="switchView('map')">地圖</button>
+            <button id="btn-list" class="btn" onclick="switchView('list')">列表</button>
         </div>
     </header>
 
     <div id="main-container">
-        <div id="loading">資料載入中...</div>
+        <div id="loading">
+            <div class="spinner"></div>
+            <div>數據更新中...</div>
+        </div>
         
-        <div id="map-view"></div>
+        <div id="map-view" style="width: 100%; height: 100%;"></div>
+        <button class="gps-btn" onclick="locateUser()" title="定位我的位置">
+            <i class="fa-solid fa-crosshairs"></i>
+        </button>
 
         <div id="list-view">
-            <div class="controls">
-                <select id="countySelect" onchange="filterList()">
-                    <option value="all">全台灣</option>
-                </select>
-                <button class="btn btn-active" onclick="fetchData()" style="padding: 8px 12px; font-size: 14px;">重新整理</button>
-            </div>
+            <input type="text" id="searchInput" class="search-box" placeholder="🔍 搜尋地區 (例如: 板橋)..." onkeyup="filterList()">
             <div id="dashboard" class="grid"></div>
         </div>
     </div>
 
     <script>
-        // 設定您的 API Key
-        const API_KEY = "d62dcdf1-adf6-49dd-9c9c-b65b1556323d";
+        const API_KEY = "d62dcdf1-adf6-49dd-9c9c-b65b1556323d"; // 您的 API Key
         const API_URL = `https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key=${API_KEY}`;
 
+        let map, markersLayer, userMarker;
         let allData = [];
-        let map;
-        let markersLayer; // 用來管理地圖上的標記群組
 
-        // 初始化
         window.onload = () => {
             initMap();
             fetchData();
         };
 
-        // 1. 初始化地圖
         function initMap() {
-            // 設定地圖中心點 (台灣中心) 與縮放層級
-            map = L.map('map-view').setView([23.6, 121.0], 8);
+            map = L.map('map-view', { zoomControl: false }).setView([23.7, 121.0], 7);
+            L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-            // 加入 OpenStreetMap 圖資 (免費)
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap &copy; CARTO'
             }).addTo(map);
 
             markersLayer = L.layerGroup().addTo(map);
         }
 
-        // 2. 抓取資料
         async function fetchData() {
-            const loading = document.getElementById('loading');
-            loading.style.display = 'flex';
-
             try {
                 const res = await fetch(API_URL);
-                if (!res.ok) throw new Error("API 連線失敗");
                 const json = await res.json();
                 allData = json.records;
-
-                updateMap(allData);
-                populateCounties(); // 列表模式的下拉選單
-                renderList(allData); // 列表模式的卡片
                 
-                loading.style.display = 'none';
-            } catch (error) {
-                alert("資料讀取失敗，請稍後再試。\n" + error.message);
-                loading.style.display = 'none';
+                renderMap(allData);
+                renderList(allData);
+                document.getElementById('loading').style.display = 'none';
+            } catch (e) {
+                alert("數據載入失敗");
+                console.error(e);
+                document.getElementById('loading').style.display = 'none';
             }
         }
 
-        // 3. 更新地圖上的點
-        function updateMap(data) {
-            markersLayer.clearLayers(); // 清除舊的點
+        function getAQIInfo(aqi) {
+            if (aqi <= 50) return { color: '#009866', class: 'bg-good', text: '良好', advice: '😊 空氣很好，盡情享受戶外活動吧！' };
+            if (aqi <= 100) return { color: '#FFDE33', class: 'bg-mod', text: '普通', advice: '😐 空氣普通，敏感族群請注意。' };
+            if (aqi <= 150) return { color: '#FF9933', class: 'bg-sen', text: '對敏感族群不健康', advice: '😷 敏感族群建議戴口罩，減少戶外劇烈活動。' };
+            if (aqi <= 200) return { color: '#CC0033', class: 'bg-un', text: '不健康', advice: '🚫 所有人都應減少戶外活動，外出請戴口罩。' };
+            if (aqi <= 300) return { color: '#660099', class: 'bg-very', text: '非常不健康', advice: '⚠️ 嚴重污染！請避免出門。' };
+            return { color: '#7E0023', class: 'bg-haz', text: '危害', advice: '☠️ 健康威脅緊急，請留在室內！' };
+        }
 
+        function renderMap(data) {
+            markersLayer.clearLayers();
             data.forEach(site => {
-                // 檢查是否有經緯度資料
-                if (site.latitude && site.longitude) {
-                    const lat = parseFloat(site.latitude);
-                    const lon = parseFloat(site.longitude);
-                    const aqi = parseInt(site.aqi);
-                    const color = getAQIColor(aqi);
+                if (!site.latitude || !site.longitude) return;
+                
+                const aqi = parseInt(site.aqi);
+                const info = getAQIInfo(aqi);
 
-                    // 建立圓形標記
-                    const marker = L.circleMarker([lat, lon], {
-                        radius: 10,
-                        fillColor: color,
-                        color: "#fff",
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.9
-                    });
+                const marker = L.circleMarker([site.latitude, site.longitude], {
+                    radius: 8, fillColor: info.color, color: '#fff', weight: 1, fillOpacity: 0.9
+                });
 
-                    // 綁定彈出視窗 (Popup)
-                    const popupContent = `
-                        <div style="text-align:center; min-width: 100px;">
-                            <strong>${site.sitename}</strong> <span style="font-size:0.8em; color:#777">(${site.county})</span>
-                            <div class="popup-aqi" style="color:${color === '#FFDE33' ? '#d4b106' : color}">${site.aqi}</div>
-                            <div style="font-size:0.9em;">狀態: ${site.status}</div>
-                            <div style="font-size:0.8em; color:#666; margin-top:5px;">PM2.5: ${site['pm2.5']}</div>
+                const popupHtml = `
+                    <div class="popup-header" style="background:${info.color}; color:${aqi>50 && aqi<=100 ? '#333':'#fff'}">
+                        ${site.sitename} <span style="font-size:0.8em">AQI ${site.aqi}</span>
+                    </div>
+                    <div class="popup-body">
+                        <div style="font-weight:bold; margin-bottom:5px;">${info.text}</div>
+                        <div style="font-size:0.85em; display:flex; justify-content:space-around;">
+                            <span>PM2.5: <b>${site["pm2.5"]}</b></span>
+                            <span>PM10: <b>${site.pm10}</b></span>
                         </div>
-                    `;
-                    marker.bindPopup(popupContent);
-                    markersLayer.addLayer(marker);
-                }
+                        <div class="advice-text">${info.advice}</div>
+                    </div>
+                `;
+
+                marker.bindPopup(popupHtml, { className: 'custom-popup' });
+                markersLayer.addLayer(marker);
             });
         }
 
-        // 4. 渲染列表模式
         function renderList(data) {
             const dashboard = document.getElementById('dashboard');
             dashboard.innerHTML = '';
+            
+            // 依照 AQI 由高到低排序 (空氣差的在前面)
+            const sortedData = [...data].sort((a, b) => parseInt(b.aqi) - parseInt(a.aqi));
 
-            data.forEach(site => {
+            sortedData.forEach(site => {
                 const aqi = parseInt(site.aqi);
-                const colorClass = getAQIClass(aqi);
-                const colorHex = getAQIColor(aqi);
+                const info = getAQIInfo(aqi);
 
                 const card = document.createElement('div');
                 card.className = 'card';
                 card.innerHTML = `
-                    <h3>${site.sitename}</h3>
-                    <div class="aqi-value" style="color:${colorHex === '#FFDE33' ? '#d4b106' : colorHex}">${site.aqi}</div>
-                    <div class="status-badge ${colorClass}">${site.status}</div>
-                    <div style="font-size:0.8em; margin-top:10px; color:#777">${site.county}</div>
+                    <div class="card-header">
+                        <strong>${site.sitename}</strong>
+                        <span style="font-size:0.8em; color:#888">${site.county}</span>
+                    </div>
+                    <div class="card-aqi" style="color:${info.color === '#FFDE33' ? '#d4b106' : info.color}">
+                        ${site.aqi}
+                    </div>
+                    <div class="card-status ${info.class}">${info.text}</div>
                 `;
                 dashboard.appendChild(card);
             });
         }
 
-        // 輔助功能：顏色代碼
-        function getAQIColor(aqi) {
-            if (aqi <= 50) return '#009866';
-            if (aqi <= 100) return '#FFDE33';
-            if (aqi <= 150) return '#FF9933';
-            if (aqi <= 200) return '#CC0033';
-            if (aqi <= 300) return '#660099';
-            return '#7E0023';
-        }
-
-        // 輔助功能：CSS 類別
-        function getAQIClass(aqi) {
-            if (aqi <= 50) return 'aqi-1';
-            if (aqi <= 100) return 'aqi-2';
-            if (aqi <= 150) return 'aqi-3';
-            if (aqi <= 200) return 'aqi-4';
-            if (aqi <= 300) return 'aqi-5';
-            return 'aqi-6';
-        }
-
-        // 介面切換邏輯
         function switchView(mode) {
-            const mapView = document.getElementById('map-view');
-            const listView = document.getElementById('list-view');
+            const mapEl = document.getElementById('map-view');
+            const listEl = document.getElementById('list-view');
             const btnMap = document.getElementById('btn-map');
             const btnList = document.getElementById('btn-list');
+            const gpsBtn = document.querySelector('.gps-btn');
 
             if (mode === 'map') {
-                mapView.style.display = 'block';
-                listView.style.display = 'none';
-                btnMap.className = 'btn btn-active';
-                btnList.className = 'btn btn-inactive';
-                setTimeout(() => { map.invalidateSize(); }, 100); // 修正地圖顯示問題
+                mapEl.style.display = 'block';
+                gpsBtn.style.display = 'flex';
+                listEl.style.display = 'none';
+                btnMap.classList.add('active');
+                btnList.classList.remove('active');
+                map.invalidateSize();
             } else {
-                mapView.style.display = 'none';
-                listView.style.display = 'block';
-                btnMap.className = 'btn btn-inactive';
-                btnList.className = 'btn btn-active';
+                mapEl.style.display = 'none';
+                gpsBtn.style.display = 'none';
+                listEl.style.display = 'block';
+                btnMap.classList.remove('active');
+                btnList.classList.add('active');
             }
         }
 
-        // 列表篩選邏輯
-        function populateCounties() {
-            const select = document.getElementById('countySelect');
-            if (select.options.length > 1) return;
-            const counties = [...new Set(allData.map(item => item.county))];
-            counties.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c;
-                opt.innerText = c;
-                select.appendChild(opt);
-            });
+        function filterList() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allData.filter(d => 
+                d.sitename.includes(term) || d.county.includes(term)
+            );
+            renderList(filtered);
         }
 
-        function filterList() {
-            const val = document.getElementById('countySelect').value;
-            if (val === 'all') renderList(allData);
-            else renderList(allData.filter(d => d.county === val));
+        // GPS 定位功能
+        function locateUser() {
+            if (!navigator.geolocation) {
+                alert("您的瀏覽器不支援定位功能");
+                return;
+            }
+
+            const gpsBtn = document.querySelector('.gps-btn');
+            gpsBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; // 轉圈圈動畫
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+
+                    // 縮放到使用者位置
+                    map.setView([lat, lng], 13);
+
+                    // 移除舊的定位點
+                    if (userMarker) map.removeLayer(userMarker);
+
+                    // 新增藍色定位點
+                    userMarker = L.marker([lat, lng], {
+                        icon: L.divIcon({
+                            className: 'user-loc',
+                            html: '<i class="fa-solid fa-location-dot" style="color:#2980b9; font-size:30px; text-shadow: 0 2px 5px rgba(0,0,0,0.3);"></i>',
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 30]
+                        })
+                    }).addTo(map).bindPopup("您在這裡").openPopup();
+
+                    gpsBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i>';
+                },
+                (err) => {
+                    alert("無法取得定位，請確認是否允許存取位置權限。");
+                    gpsBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i>';
+                }
+            );
         }
     </script>
 </body>

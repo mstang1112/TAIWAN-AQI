@@ -3,11 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>台灣空氣 V6 (極速版)</title>
+    <title>台灣空氣 V7 (趨勢圖表版)</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         body { font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
@@ -40,35 +43,33 @@
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .card-aqi { font-size: 2.2em; font-weight: 800; margin: 5px 0; }
         
-        /* 載入遮罩 (改為半透明且非強制阻擋) */
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.5s; pointer-events: none; opacity: 0; }
         #loading.show { opacity: 1; pointer-events: all; }
         
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #2c3e50; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* AQI Colors */
-        .bg-good { background: #009866; }
-        .bg-mod { background: #FFDE33; color: #333 !important; }
-        .bg-sen { background: #FF9933; }
-        .bg-un { background: #CC0033; }
-        .bg-very { background: #660099; }
-        .bg-haz { background: #7E0023; }
+        .bg-good { background: #009866; } .bg-mod { background: #FFDE33; color: #333 !important; }
+        .bg-sen { background: #FF9933; } .bg-un { background: #CC0033; }
+        .bg-very { background: #660099; } .bg-haz { background: #7E0023; }
 
-        /* Popup Styles */
-        .custom-popup .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 8px; }
-        .custom-popup .leaflet-popup-content { margin: 0; width: 220px !important; }
+        /* V7 新增: Popup 與圖表樣式 */
+        .custom-popup .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 12px; }
+        .custom-popup .leaflet-popup-content { margin: 0; width: 280px !important; } /* 加寬以容納圖表 */
         .popup-header { padding: 10px; color: white; text-align: center; font-weight: bold; font-size: 1.1em;}
-        .popup-body { padding: 15px; text-align: center; }
-        .advice-text { font-size: 0.9em; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #ddd; color: #555; text-align: left; }
-        .nearest-badge { background: #2c3e50; color: white; font-size: 0.75em; padding: 2px 6px; border-radius: 4px; margin-bottom: 5px; display: inline-block; }
+        .popup-body { padding: 10px; text-align: center; }
+        .advice-text { font-size: 0.9em; margin-top: 5px; color: #555; text-align: left; background: #f9f9f9; padding: 8px; border-radius: 5px;}
+        
+        /* 圖表容器 */
+        .chart-container { position: relative; height: 150px; width: 100%; margin-top: 10px; display: none; }
+        .chart-loading { font-size: 0.8em; color: #999; margin-top: 10px; display: block;}
     </style>
 </head>
 <body>
 
     <header>
         <div class="title-group">
-            <h1><i class="fa-solid fa-bolt"></i> 台灣空氣 V6</h1>
+            <h1><i class="fa-solid fa-chart-line"></i> 台灣空氣 V7</h1>
             <div id="update-time" class="update-time">等待更新...</div>
         </div>
         <div class="view-switch">
@@ -98,37 +99,27 @@
     <script>
         const API_KEY = "d62dcdf1-adf6-49dd-9c9c-b65b1556323d"; 
         const API_URL = `https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key=${API_KEY}`;
-        const CACHE_KEY = "AQI_DATA_CACHE";
-        const CACHE_TIME_KEY = "AQI_LAST_UPDATE";
+        const CACHE_KEY = "AQI_DATA_CACHE_V7"; // 更新 Cache Key 避免舊資料衝突
+        const CACHE_TIME_KEY = "AQI_LAST_UPDATE_V7";
 
         let map, markersLayer, userMarker;
         let allData = [];
         let autoUpdateTimer;
+        let currentChart = null; // 用來管理圖表實例
 
         window.onload = () => {
             initMap();
-            
-            // 1. 策略：如果有快取，先顯示快取 (秒開)
             const cachedData = loadFromCache();
             if (cachedData) {
-                console.log("使用快取資料快速渲染");
                 allData = cachedData;
                 renderMap(allData);
                 renderList(allData);
-                document.getElementById('loading').classList.remove('show'); // 立刻關閉遮罩
-                
-                // 更新顯示快取的時間
+                document.getElementById('loading').classList.remove('show');
                 const lastTime = localStorage.getItem(CACHE_TIME_KEY);
                 if(lastTime) document.getElementById('update-time').innerText = `${lastTime} (快取)`;
             }
-
-            // 2. 然後在背景抓新資料 (更新)
-            fetchData(cachedData ? false : true); // 如果有快取，fetchData 就不要顯示遮罩
-
-            // 3. 每 10 分鐘自動更新
-            autoUpdateTimer = setInterval(() => {
-                fetchData(false);
-            }, 600000); 
+            fetchData(cachedData ? false : true);
+            autoUpdateTimer = setInterval(() => { fetchData(false); }, 600000); 
         };
 
         function initMap() {
@@ -138,36 +129,36 @@
                 attribution: '&copy; OpenStreetMap'
             }).addTo(map);
             markersLayer = L.layerGroup().addTo(map);
+
+            // 監聽 Popup 開啟事件，以便繪製圖表
+            map.on('popupopen', function(e) {
+                const marker = e.popup._source;
+                // 檢查這個 Marker 是否有我們綁定的測站資料
+                if (marker.stationData) {
+                    loadTrendChart(marker.stationData);
+                }
+            });
         }
 
         async function fetchData(showLoading) {
             const timeDisplay = document.getElementById('update-time');
             const loadingEl = document.getElementById('loading');
-            
             if (showLoading) loadingEl.classList.add('show');
             timeDisplay.innerText = "連線中...";
 
             try {
-                // 加上 timestamp 防止瀏覽器快取 API request
                 const res = await fetch(`${API_URL}&t=${new Date().getTime()}`);
                 if (!res.ok) throw new Error("API Error");
-                
                 const json = await res.json();
                 allData = json.records;
-                
-                // 渲染畫面
                 renderMap(allData);
                 renderList(allData);
-                
-                // 儲存到快取
                 saveToCache(allData);
-
-                // 更新時間
+                
                 const now = new Date();
                 const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
                 timeDisplay.innerText = `${timeString} 更新`;
                 localStorage.setItem(CACHE_TIME_KEY, timeString);
-
             } catch (e) {
                 console.error(e);
                 timeDisplay.innerText = "更新失敗";
@@ -176,35 +167,21 @@
             }
         }
 
-        // --- 快取功能區 ---
-        function saveToCache(data) {
-            try {
-                localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-            } catch (e) { console.error("Cache save failed", e); }
-        }
-
-        function loadFromCache() {
-            try {
-                const json = localStorage.getItem(CACHE_KEY);
-                return json ? JSON.parse(json) : null;
-            } catch (e) { return null; }
-        }
-        // ------------------
+        // --- 快取系統 ---
+        function saveToCache(data) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch (e) {} }
+        function loadFromCache() { try { return JSON.parse(localStorage.getItem(CACHE_KEY)); } catch (e) { return null; } }
 
         function getAQIInfo(aqi) {
-            if (aqi <= 50) return { color: '#009866', class: 'bg-good', text: '良好', advice: '😊 空氣不錯，適合戶外活動' };
-            if (aqi <= 100) return { color: '#FFDE33', class: 'bg-mod', text: '普通', advice: '😐 空氣普通，敏感族群稍加注意' };
-            if (aqi <= 150) return { color: '#FF9933', class: 'bg-sen', text: '對敏感族群不健康', advice: '😷 敏感族群建議戴口罩' };
-            if (aqi <= 200) return { color: '#CC0033', class: 'bg-un', text: '不健康', advice: '🚫 建議減少戶外活動，外出戴口罩' };
-            if (aqi <= 300) return { color: '#660099', class: 'bg-very', text: '非常不健康', advice: '⚠️ 嚴重污染，請避免外出' };
-            return { color: '#7E0023', class: 'bg-haz', text: '危害', advice: '☠️ 危險級！請留在室內' };
+            if (aqi <= 50) return { color: '#009866', class: 'bg-good', text: '良好', advice: '😊 適合戶外活動' };
+            if (aqi <= 100) return { color: '#FFDE33', class: 'bg-mod', text: '普通', advice: '😐 敏感族群注意' };
+            if (aqi <= 150) return { color: '#FF9933', class: 'bg-sen', text: '對敏感族群不健康', advice: '😷 建議戴口罩' };
+            if (aqi <= 200) return { color: '#CC0033', class: 'bg-un', text: '不健康', advice: '🚫 減少戶外活動' };
+            if (aqi <= 300) return { color: '#660099', class: 'bg-very', text: '非常不健康', advice: '⚠️ 避免外出' };
+            return { color: '#7E0023', class: 'bg-haz', text: '危害', advice: '☠️ 危險！留室內' };
         }
 
         function renderMap(data) {
-            // 為了效能，只有在資料真的有變動時才重繪，但這裡為了簡單邏輯，我們使用清空重繪
-            // V6 優化：在 clearLayers 前先檢查是否有資料
             if(!data || data.length === 0) return;
-
             markersLayer.clearLayers();
             data.forEach(site => {
                 if (!site.latitude || !site.longitude) return;
@@ -213,29 +190,116 @@
                 const marker = L.circleMarker([site.latitude, site.longitude], {
                     radius: 7, fillColor: info.color, color: '#fff', weight: 1, fillOpacity: 0.8
                 });
+                
+                // 將資料綁定到 Marker 物件上，方便 Popup 使用
+                marker.stationData = site;
+                
                 marker.bindPopup(generatePopupContent(site, info, false), { className: 'custom-popup' });
                 markersLayer.addLayer(marker);
             });
         }
 
         function generatePopupContent(site, info, isNearestLabel) {
-            const labelHtml = isNearestLabel ? `<div class="nearest-badge">📍 離您最近的測站</div><br>` : '';
+            const labelHtml = isNearestLabel ? `<div class="nearest-badge" style="background:#2c3e50;color:white;padding:2px 6px;border-radius:4px;font-size:0.8em;display:inline-block;margin-bottom:5px;">📍 離您最近</div><br>` : '';
+            // 每個 Popup 都有唯一的 Canvas ID
+            const canvasId = `chart-${site.sitename}-${Math.random().toString(36).substr(2, 5)}`;
+            
             return `
                 <div class="popup-header" style="background:${info.color}; color:${parseInt(site.aqi)>50 && parseInt(site.aqi)<=100 ? '#333':'#fff'}">
                     ${site.sitename} <span style="font-size:0.8em">AQI ${site.aqi}</span>
                 </div>
                 <div class="popup-body">
                     ${labelHtml}
-                    <div style="font-weight:bold; font-size:1.2em; margin-bottom:5px;">${info.text}</div>
-                    <div style="font-size:0.85em; display:flex; justify-content:space-around; color:#555;">
+                    <div style="font-size:0.9em; display:flex; justify-content:space-around; color:#555; margin-bottom:5px;">
                         <span>PM2.5: <b>${site["pm2.5"]}</b></span>
                         <span>PM10: <b>${site.pm10}</b></span>
                     </div>
+                    
                     <div class="advice-text">${info.advice}</div>
+
+                    <div style="margin-top:10px; border-top:1px solid #eee; padding-top:5px;">
+                        <div style="font-size:0.8em; font-weight:bold; color:#666; text-align:left;">📉 PM2.5 過去24h趨勢</div>
+                        <div id="loading-${canvasId}" class="chart-loading">載入數據中...</div>
+                        <div class="chart-container" id="container-${canvasId}">
+                            <canvas id="${canvasId}"></canvas>
+                        </div>
+                    </div>
                 </div>
             `;
         }
 
+        // V7 核心：載入並繪製圖表
+        async function loadTrendChart(site) {
+            // 尋找剛建立的 Canvas ID (因為 Leaflet 的 popup 是動態生成的，這裡需要一點技巧找 DOM)
+            // 我們利用 MutationObserver 或延遲執行，這裡使用延遲最簡單
+            setTimeout(async () => {
+                const canvas = document.querySelector('.custom-popup canvas');
+                if (!canvas) return; // 沒找到
+                
+                const canvasId = canvas.id;
+                const loadingDiv = document.getElementById(`loading-${canvasId}`);
+                const containerDiv = document.getElementById(`container-${canvasId}`);
+
+                try {
+                    // 使用 Open-Meteo API 抓取過去 24 小時的 PM2.5
+                    const lat = site.latitude;
+                    const lon = site.longitude;
+                    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&timezone=auto&past_days=1&forecast_days=0`;
+                    
+                    const res = await fetch(url);
+                    const json = await res.json();
+                    
+                    // 整理數據 (取最後 24 筆)
+                    const len = json.hourly.time.length;
+                    const labels = json.hourly.time.slice(len-24, len).map(t => t.slice(11, 16)); // 只取 HH:MM
+                    const dataPoints = json.hourly.pm2_5.slice(len-24, len);
+
+                    loadingDiv.style.display = 'none';
+                    containerDiv.style.display = 'block';
+
+                    // 銷毀舊圖表以防記憶體洩漏
+                    if (currentChart) {
+                        currentChart.destroy();
+                    }
+
+                    // 繪製新圖表
+                    const ctx = canvas.getContext('2d');
+                    currentChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'PM2.5 (µg/m³)',
+                                data: dataPoints,
+                                borderColor: '#3498db',
+                                backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.4, // 平滑曲線
+                                pointRadius: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false } // 隱藏圖例
+                            },
+                            scales: {
+                                x: { display: true, ticks: { maxTicksLimit: 6, font: {size: 9} }, grid: {display:false} },
+                                y: { display: true, ticks: { font: {size: 9} } }
+                            }
+                        }
+                    });
+
+                } catch (e) {
+                    console.error("Chart Error", e);
+                    if(loadingDiv) loadingDiv.innerText = "無法載入歷史數據";
+                }
+            }, 100); // 稍微等待 popup 動畫完成
+        }
+
+        // ... 列表與定位功能維持不變 ...
         function renderList(data) {
             const dashboard = document.getElementById('dashboard');
             dashboard.innerHTML = '';
@@ -292,23 +356,26 @@
                 map.setView([lat, lng], 14);
                 const result = findNearestStation(lat, lng);
                 const nearestSite = result.station;
-                const distKm = (result.distance / 1000).toFixed(1);
                 
-                let popupContent = "您在這裡";
                 if (nearestSite) {
+                    // 模擬 Marker 被點擊，觸發 Popup 和圖表
+                    if (userMarker) map.removeLayer(userMarker);
+                    userMarker = L.marker([lat, lng], {
+                        icon: L.divIcon({
+                            className: 'user-loc',
+                            html: '<i class="fa-solid fa-street-view" style="color:#2980b9; font-size:36px; text-shadow: 2px 2px 2px white;"></i>',
+                            iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -35]
+                        })
+                    }).addTo(map);
+                    
+                    // 手動產生內容並開啟
+                    // 注意：這邊需要把 nearestSite 綁定到 userMarker 才能讓圖表函式抓到
+                    userMarker.stationData = nearestSite;
+                    
                     const info = getAQIInfo(parseInt(nearestSite.aqi));
-                    popupContent = generatePopupContent(nearestSite, info, true);
-                    popupContent += `<div style="text-align:center; font-size:0.8em; color:#999; margin-top:5px;">(距離測站 ${distKm} 公里)</div>`;
+                    userMarker.bindPopup(generatePopupContent(nearestSite, info, true), { className: 'custom-popup' });
+                    userMarker.openPopup();
                 }
-                if (userMarker) map.removeLayer(userMarker);
-                userMarker = L.marker([lat, lng], {
-                    icon: L.divIcon({
-                        className: 'user-loc',
-                        html: '<i class="fa-solid fa-street-view" style="color:#2980b9; font-size:36px; text-shadow: 2px 2px 2px white;"></i>',
-                        iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -35]
-                    })
-                }).addTo(map);
-                userMarker.bindPopup(popupContent, { className: 'custom-popup' }).openPopup();
                 gpsBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i>';
             }, () => { alert("定位失敗"); gpsBtn.innerHTML = '<i class="fa-solid fa-crosshairs"></i>'; });
         }

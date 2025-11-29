@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>台灣空氣 V14 (互動版)</title>
+    <title>台灣空氣 V15 (分享版)</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -40,7 +40,8 @@
         .card:active { transform: scale(0.98); }
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .card-aqi { font-size: 2.2em; font-weight: 800; margin: 5px 0; }
-        /* 愛心按鈕樣式 */
+        
+        /* 愛心按鈕 */
         .fav-btn { cursor: pointer; color: #ccc; font-size: 1.2em; padding: 5px; transition: color 0.2s; }
         .fav-btn.active { color: #e74c3c; }
         .fav-badge { position: absolute; top: 10px; right: 10px; color: #e74c3c; display: none; }
@@ -52,7 +53,7 @@
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #2c3e50; border-radius: 50%; width: 30px; height: 30px; animation: spin 0.8s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* Popup 優化 */
+        /* Popup */
         .custom-popup .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 12px; }
         .custom-popup .leaflet-popup-content { margin: 0; width: 300px !important; }
         .popup-header { padding: 12px 15px; color: white; text-align: center; font-weight: bold; font-size: 1.1em; display: flex; justify-content: space-between; align-items: center;}
@@ -69,10 +70,11 @@
         .chart-container { position: relative; height: 120px; width: 100%; margin-top: 5px; display: none; }
         .chart-loading { font-size: 0.8em; color: #999; margin-top: 10px; display: block;}
 
-        /* 分享按鈕區 */
+        /* 分享按鈕 */
         .action-row { display: flex; gap: 10px; margin-top: 10px; }
         .action-btn { flex: 1; padding: 8px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.9em; display: flex; align-items: center; justify-content: center; gap: 5px; }
         .btn-copy { background: #2ecc71; color: white; }
+        .btn-copy:active { background: #27ae60; transform: scale(0.98); }
         .btn-fav { background: #ecf0f1; color: #555; }
         .btn-fav.active { background: #fadbd8; color: #c0392b; }
     </style>
@@ -81,7 +83,7 @@
 
     <header>
         <div class="title-group">
-            <h1><i class="fa-solid fa-heart-circle-check"></i> 台灣空氣 V14</h1>
+            <h1><i class="fa-solid fa-share-nodes"></i> 台灣空氣 V15</h1>
             <div id="update-time" class="update-time">等待更新...</div>
         </div>
         <div class="view-switch">
@@ -116,18 +118,18 @@
         const API_FIELDS = "sitename,county,aqi,status,pm2.5,pm10,longitude,latitude,publishtime";
         const API_URL = `https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key=${API_KEY}&$select=${API_FIELDS}`;
         
-        const CACHE_KEY = "AQI_DATA_CACHE_V14";
-        const CACHE_TIME_KEY = "AQI_LAST_UPDATE_V14";
+        const CACHE_KEY = "AQI_DATA_CACHE_V15";
+        const CACHE_TIME_KEY = "AQI_LAST_UPDATE_V15";
         const FAV_KEY = "AQI_FAVORITES";
 
         let map, markersLayer, userMarker;
         let allData = [];
-        let favorites = []; // 儲存收藏的測站名稱
+        let favorites = []; 
         let currentChart = null;
         let isListRendered = false;
 
         window.onload = () => {
-            loadFavorites(); // 載入收藏
+            loadFavorites(); 
             setTimeout(() => { document.getElementById('loading').classList.remove('show'); }, 4000);
 
             try {
@@ -206,9 +208,7 @@
             }
             localStorage.setItem(FAV_KEY, JSON.stringify(favorites));
             
-            // 更新 UI
-            if (document.getElementById('list-view').style.display === 'block') renderList(allData); // 重新排序列表
-            // 如果 Popup 打開中，更新 Popup 按鈕狀態
+            if (document.getElementById('list-view').style.display === 'block') renderList(allData);
             const btn = document.getElementById(`fav-btn-${sitename}`);
             if(btn) updateFavBtnUI(btn, favorites.includes(sitename));
         }
@@ -223,17 +223,20 @@
             }
         }
 
+        // V15 更新：複製功能加入連結
         function copyReport(site, w) {
             let weatherText = w ? `🌡️ ${w.temperature_2m}°C 💧 ${w.relative_humidity_2m}%` : "";
-            let text = `【空氣快報】${site.sitename}\n----------\n🏭 AQI: ${site.aqi} (${site.status})\n🌬️ PM2.5: ${site["pm2.5"]}\n${weatherText}\n----------\n查詢時間: ${new Date().toLocaleTimeString()}\n(來自: 台灣空氣APP)`;
+            // 自動抓取當前網址
+            const currentUrl = window.location.href;
+            
+            let text = `【空氣快報】${site.sitename}\n----------\n🏭 AQI: ${site.aqi} (${site.status})\n🌬️ PM2.5: ${site["pm2.5"]}\n${weatherText}\n----------\n查詢時間: ${new Date().toLocaleTimeString()}\n🔗 查看地圖: ${currentUrl}`;
             
             navigator.clipboard.writeText(text).then(() => {
-                alert("✅ 報告已複製！請貼上 Line 或 訊息");
+                alert("✅ 報告已複製！請貼上分享");
             }).catch(() => {
                 alert("複製失敗，請手動截圖");
             });
         }
-
         // ------------------
 
         function saveToCache(data) { try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch (e) {} }
@@ -255,8 +258,6 @@
                 if (!site.latitude || !site.longitude) return;
                 const aqi = parseInt(site.aqi);
                 const info = getAQIInfo(aqi);
-                
-                // 收藏的站點加粗圈圈
                 const isFav = favorites.includes(site.sitename);
                 const weight = isFav ? 4 : 1.5;
                 const strokeColor = isFav ? '#e74c3c' : '#fff';
@@ -317,8 +318,7 @@
             const containerDiv = document.getElementById(`container-${canvasId}`);
             const infoDiv = document.getElementById(infoId);
 
-            // 綁定全域複製函數 (因為 onclick 是在 HTML string 中)
-            window.copyCurrentReport = () => { }; // 預設空
+            window.copyCurrentReport = () => { }; 
 
             try {
                 const lat = site.latitude;
@@ -331,7 +331,6 @@
                 const aqiJson = await resAqi.json();
                 const w = weatherJson.current;
 
-                // 更新全域複製函數，帶入天氣數據
                 window.copyCurrentReport = () => copyReport(site, w);
 
                 let uvClass = "#27ae60";
@@ -345,7 +344,6 @@
                     <div class="info-item"><div class="info-label">風向</div><div style="display:flex;align-items:center;gap:3px;"><i class="fa-solid fa-location-arrow wind-arrow" style="transform: rotate(${w.wind_direction_10m + 180}deg);"></i><span style="font-size:0.9em;">${w.wind_speed_10m}</span></div></div>
                 `;
 
-                // Chart
                 const len = aqiJson.hourly.time.length;
                 const labels = aqiJson.hourly.time.slice(len-24, len).map(t => t.slice(11, 16));
                 const dataPoints = aqiJson.hourly.pm2_5.slice(len-24, len);
@@ -367,13 +365,11 @@
             dashboard.innerHTML = '';
             const fragment = document.createDocumentFragment();
             
-            // 排序：先排 "已收藏" 的，再排 "AQI 高 (空氣差)" 的
             const sortedData = [...data].sort((a, b) => {
                 const aFav = favorites.includes(a.sitename);
                 const bFav = favorites.includes(b.sitename);
-                if (aFav && !bFav) return -1; // a 在前
-                if (!aFav && bFav) return 1;  // b 在前
-                // 都收藏或都不收藏，則比較 AQI
+                if (aFav && !bFav) return -1; 
+                if (!aFav && bFav) return 1;  
                 return parseInt(b.aqi) - parseInt(a.aqi);
             });
 
@@ -384,9 +380,7 @@
 
                 const card = document.createElement('div');
                 card.className = `card ${isFav ? 'is-fav' : ''}`;
-                // 點擊卡片切換地圖
                 card.onclick = (e) => {
-                    // 如果點到愛心，不要觸發地圖跳轉
                     if(e.target.closest('.fav-btn')) return;
                     switchView('map');
                     const m = findMarkerBySitename(site.sitename);
@@ -423,7 +417,7 @@
         function filterList() {
             const term = document.getElementById('searchInput').value.toLowerCase();
             const filtered = allData.filter(d => d.sitename.includes(term) || d.county.includes(term));
-            renderList(filtered); // 搜尋時不一定重排收藏，直接顯示結果
+            renderList(filtered);
         }
 
         function findMarkerBySitename(name) {

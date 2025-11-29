@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>台灣空氣 V22 (排行版)</title>
+<title>台灣空氣 V23 (雙榜版)</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
@@ -24,20 +24,23 @@ header{background:#2c3e50;color:#fff;padding:10px 15px;display:flex;justify-cont
 .act-row{display:flex;gap:10px;margin-top:10px} .act-btn{flex:1;padding:8px;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:.9em;display:flex;align-items:center;justify-content:center;gap:5px} .btn-cp{background:#2ecc71;color:#fff} .btn-cp:active{background:#27ae60;transform:scale(.98)} .btn-fv{background:#ecf0f1;color:#555} .btn-fv.active{background:#fadbd8;color:#c0392b}
 .ai-box { background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border-radius: 8px; padding: 10px; margin: 10px 0; border: 1px solid #e1e4e8; font-size: 0.9em; text-align: left; } .ai-title { font-weight: bold; color: #2c3e50; display: flex; align-items: center; gap: 5px; margin-bottom: 5px; } .trend-up { color: #c0392b; font-weight: bold; } .trend-down { color: #27ae60; font-weight: bold; }
 
-/* V22 排行榜樣式 */
-.top5-box { background: linear-gradient(to right, #eb3349, #f45c43); padding: 12px; border-radius: 12px; margin-bottom: 20px; color: white; box-shadow: 0 4px 15px rgba(235, 51, 73, 0.3); }
-.top5-title { font-weight: bold; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-.top5-list { display: flex; flex-direction: column; gap: 6px; }
-.top5-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.15); padding: 8px 12px; border-radius: 8px; cursor: pointer; backdrop-filter: blur(5px); transition: background 0.2s; }
-.top5-row:active { background: rgba(255,255,255,0.3); transform: scale(0.98); }
-.top5-rank { font-weight: bold; margin-right: 5px; opacity: 0.8; }
-.top5-val { font-weight: bold; background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 10px; font-size: 0.9em; }
+/* V23 雙榜樣式 */
+.rank-container { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.top5-box { padding: 12px; border-radius: 12px; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+.box-bad { background: linear-gradient(to right, #eb3349, #f45c43); }
+.box-good { background: linear-gradient(to right, #11998e, #38ef7d); }
+.top5-title { font-weight: bold; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+.top5-list { display: flex; flex-direction: column; gap: 5px; }
+.top5-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 8px; cursor: pointer; backdrop-filter: blur(5px); transition: background 0.2s; font-size: 0.95em; }
+.top5-row:active { background: rgba(255,255,255,0.4); transform: scale(0.98); }
+.top5-rank { font-weight: bold; margin-right: 5px; opacity: 0.9; }
+.top5-val { font-weight: bold; background: rgba(0,0,0,0.25); padding: 2px 8px; border-radius: 10px; font-size: 0.85em; }
 </style>
 <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
 </head>
 <body>
 <header>
-    <div class="title-group"><h1><i class="fa-solid fa-ranking-star"></i> 台灣空氣 V22</h1><div class="sub-info"><span id="ut">更新中...</span><span id="busuanzi_container_site_pv" style="display:none"><i class="fa-solid fa-eye"></i> <span id="busuanzi_value_site_pv">--</span></span></div></div>
+    <div class="title-group"><h1><i class="fa-solid fa-scale-balanced"></i> 台灣空氣 V23</h1><div class="sub-info"><span id="ut">更新中...</span><span id="busuanzi_container_site_pv" style="display:none"><i class="fa-solid fa-eye"></i> <span id="busuanzi_value_site_pv">--</span></span></div></div>
     <div class="view-switch"><button id="btn-map" class="btn active" onclick="setView('map')">地圖</button><button id="btn-list" class="btn" onclick="setView('list')">列表</button></div>
 </header>
 <div id="main">
@@ -46,9 +49,15 @@ header{background:#2c3e50;color:#fff;padding:10px 15px;display:flex;justify-cont
     <div class="float-btns"><button class="float-btn" onclick="locate()"><i class="fa-solid fa-crosshairs"></i></button></div>
     
     <div id="list">
-        <div id="top5-section" class="top5-box" style="display:none">
-            <div class="top5-title"><span>🔥 空氣最髒 TOP 5</span><i class="fa-solid fa-triangle-exclamation"></i></div>
-            <div id="top5-content" class="top5-list"></div>
+        <div id="rank-section" class="rank-container" style="display:none">
+            <div class="top5-box box-bad">
+                <div class="top5-title"><span>🔥 空氣最髒 TOP 5</span><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <div id="top5-bad-list" class="top5-list"></div>
+            </div>
+            <div class="top5-box box-good">
+                <div class="top5-title"><span>🌲 空氣最優 TOP 5</span><i class="fa-solid fa-tree"></i></div>
+                <div id="top5-good-list" class="top5-list"></div>
+            </div>
         </div>
 
         <input type="text" id="sInput" class="search" placeholder="🔍 搜尋縣市或測站..." onkeyup="filter()"><div id="dash" class="grid"></div>
@@ -117,18 +126,25 @@ function drawMap(d){
 }
 
 function drawList(d){
-    // Render TOP 5
-    let sorted = [...d].filter(x=>!isNaN(x.aqi)).sort((a,b)=>parseInt(b.aqi)-parseInt(a.aqi)).slice(0,5);
-    let topHtml = sorted.map((s,i) => `
+    // 1. 產生最髒 TOP 5 (降序)
+    let badSorted = [...d].filter(x=>!isNaN(x.aqi) && x.aqi!=="").sort((a,b)=>parseInt(b.aqi)-parseInt(a.aqi)).slice(0,5);
+    el('top5-bad-list').innerHTML = badSorted.map((s,i) => `
         <div class="top5-row" onclick="jumpTo('${s.sitename}')">
             <div><span class="top5-rank">#${i+1}</span> ${s.sitename} <small style="font-size:0.8em;opacity:0.8">${s.county}</small></div>
             <div class="top5-val">${s.aqi}</div>
-        </div>
-    `).join('');
-    el('top5-content').innerHTML = topHtml;
-    el('top5-section').style.display = 'block';
+        </div>`).join('');
 
-    // Render Grid
+    // 2. 產生最優 TOP 5 (升序)
+    let goodSorted = [...d].filter(x=>!isNaN(x.aqi) && x.aqi!=="" && parseInt(x.aqi)>0).sort((a,b)=>parseInt(a.aqi)-parseInt(b.aqi)).slice(0,5);
+    el('top5-good-list').innerHTML = goodSorted.map((s,i) => `
+        <div class="top5-row" onclick="jumpTo('${s.sitename}')">
+            <div><span class="top5-rank">#${i+1}</span> ${s.sitename} <small style="font-size:0.8em;opacity:0.8">${s.county}</small></div>
+            <div class="top5-val">${s.aqi}</div>
+        </div>`).join('');
+    
+    el('rank-section').style.display = 'flex';
+
+    // 3. 產生所有卡片
     el('dash').innerHTML=''; let frag=document.createDocumentFragment();
     d.sort((a,b)=>{ let fa=favs.includes(a.sitename), fb=favs.includes(b.sitename); return (fa&&!fb)?-1:(!fa&&fb)?1:(b.aqi-a.aqi); }).forEach(s=>{
         let q=getAQI(s.aqi), isF=favs.includes(s.sitename), div=document.createElement('div');
@@ -140,7 +156,6 @@ function drawList(d){
     el('dash').appendChild(frag); rendered=true;
 }
 
-// 跳轉到地圖並開啟彈窗
 window.jumpTo = (name) => {
     setView('map');
     let m; markers.eachLayer(l=>{if(l.sd.sitename===name)m=l});
@@ -152,7 +167,6 @@ function getPop(s,q,isNear){
     let lbl = isNear ? '<div style="background:#2c3e50;color:#fff;font-size:.8em;padding:2px 6px;border-radius:4px;display:inline-block;margin-bottom:5px">📍 最近測站</div>' : '';
     return `<div class="popup-hdr" style="background:${q.c};color:${s.aqi>50&&s.aqi<=100?'#333':'#fff'}"><span>${s.sitename}</span><span>AQI ${s.aqi}</span></div>
     <div class="popup-bd"><div style="margin-top:10px">${lbl}</div><div style="display:flex;justify-content:space-around;color:#666;font-size:.9em;margin:5px 0 10px;border-bottom:1px dashed #eee;padding-bottom:10px"><span>PM2.5: <b>${s["pm2.5"]}</b></span><span>PM10: <b>${s.pm10}</b></span></div>
-    
     <div id="ai-${id}" class="ai-box"><i class="fa-solid fa-spinner fa-spin"></i> AI 分析中...</div>
     <div id="i-${id}" class="info-grid"><i class="fa-solid fa-spinner fa-spin"></i></div>
     <div class="act-row"><button id="fb-${s.sitename}" class="act-btn btn-fv ${isF?'active':''}" onclick="togFav('${s.sitename}')"><i class="${isF?'fa-solid':'fa-regular'} fa-heart"></i> ${isF?'已收藏':'收藏'}</button><button class="act-btn btn-cp" onclick="cpRep()"><i class="fa-regular fa-copy"></i> 複製報告</button></div>
@@ -164,21 +178,17 @@ function analyzeData(h, w, currentAQI) {
     let n = recent.length, sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
     for (let i=0; i<n; i++) { sumX += i; sumY += recent[i]; sumXY += i * recent[i]; sumXX += i * i; }
     let slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    
     let trendTxt = '<span style="color:#7f8c8d;font-weight:bold">持平</span>';
     if(slope > 0.5) trendTxt = '<span class="trend-up">惡化中 📈</span>';
     if(slope < -0.5) trendTxt = '<span class="trend-down">改善中 📉</span>';
-
     let feel = "舒適";
     if(w.relative_humidity_2m > 80 && w.temperature_2m > 28) feel = "悶熱潮濕";
     else if(w.wind_speed_10m > 15) feel = "風大偏冷";
     else if(w.temperature_2m < 15) feel = "寒冷";
-
     let advice = "空氣與天氣皆適宜。";
     if(currentAQI > 100) advice = "空氣差，建議開啟清淨機。";
     if(currentAQI > 100 && slope > 0.5) advice = "汙染正快速累積，請務必關窗！";
     if(w.relative_humidity_2m > 85) advice += " 濕度極高，注意發霉。";
-
     return { trend: trendTxt, feel: feel, advice: advice };
 }
 
@@ -196,7 +206,7 @@ async function loadDet(s){
 
         window.cpRep=()=>{
             let st = getAdv(parseInt(s.aqi));
-            let txt=`【空氣快報】${s.sitename} ${st.icon}\n----------\n🏭 AQI: ${s.aqi} (${s.status})\n🔮 趨勢: ${ai.trend.replace(/<[^>]*>/g, '')}\n💡 建議: ${ai.advice}\n🌡️ ${w.temperature_2m}°C 💧 ${w.relative_humidity_2m}%\n----------\n🔗 查看地圖: ${location.href}`;
+            let txt=`【空氣快報】${s.sitename} ${st.icon}\n----------\n🏭 AQI: ${s.aqi} (${s.status})\n🔮 趨勢: ${ai.trend.replace(/<[^>]*>/g, '')}\n💡 建議: ${st.txt}\n🌡️ ${w.temperature_2m}°C 💧 ${w.relative_humidity_2m}%\n----------\n🔗 查看地圖: ${location.href}`;
             navigator.clipboard.writeText(txt).then(()=>alert("✅ 報告已複製！")).catch(()=>alert("複製失敗"));
         };
 

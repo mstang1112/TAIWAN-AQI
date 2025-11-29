@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>台灣空氣 V17</title>
+<title>台灣空氣 V19</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
@@ -10,40 +10,45 @@ body{font-family:"Microsoft JhengHei",sans-serif;background:#f4f4f9;color:#333;m
 header{background:#2c3e50;color:#fff;padding:10px 15px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 5px rgba(0,0,0,.2);z-index:1000}
 .title-group{display:flex;flex-direction:column} h1{margin:0;font-size:1.1rem;display:flex;align-items:center;gap:5px} .sub-info{font-size:.75rem;color:#bdc3c7;margin-top:2px;display:flex;gap:10px}
 .view-switch{display:flex;background:rgba(255,255,255,.2);border-radius:20px;padding:2px;margin-left:10px} .btn{padding:6px 12px;border:none;border-radius:18px;cursor:pointer;font-size:.9rem;background:0 0;color:rgba(255,255,255,.7)} .btn.active{background:#fff;color:#2c3e50;font-weight:700}
-#main{flex:1;position:relative;overflow:hidden} .gps-btn{position:absolute;bottom:25px;right:20px;z-index:999;background:#fff;border:none;width:50px;height:50px;border-radius:50%;box-shadow:0 4px 10px rgba(0,0,0,.3);cursor:pointer;font-size:1.5rem;color:#2c3e50;display:flex;justify-content:center;align-items:center}
+#main{flex:1;position:relative;overflow:hidden} 
+.float-btns{position:absolute;bottom:25px;right:20px;z-index:999;display:flex;flex-direction:column;gap:10px}
+.float-btn{background:#fff;border:none;width:50px;height:50px;border-radius:50%;box-shadow:0 4px 10px rgba(0,0,0,.3);cursor:pointer;font-size:1.5rem;color:#2c3e50;display:flex;justify-content:center;align-items:center}
 #list{padding:15px;overflow-y:auto;height:100%;box-sizing:border-box;display:none;background:#f0f2f5} .search{width:100%;padding:12px;margin-bottom:15px;border:1px solid #ddd;border-radius:8px;font-size:16px;box-sizing:border-box} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:15px}
-.card{background:#fff;padding:15px;border-radius:12px;box-shadow:0 2px 5px rgba(0,0,0,.05);text-align:center;position:relative;transition:transform .2s} .card:active{transform:scale(.98)} .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px} .card-aqi{font-size:2.2em;font-weight:800;margin:5px 0}
+.card{background:#fff;padding:15px;border-radius:12px;box-shadow:0 2px 5px rgba(0,0,0,.05);text-align:center;position:relative} .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px} .card-aqi{font-size:2.2em;font-weight:800;margin:5px 0}
 .fav-btn{cursor:pointer;color:#ccc;font-size:1.2em;padding:5px} .fav-btn.active,.fav-badge{color:#e74c3c} .fav-badge{position:absolute;top:10px;right:10px;display:none} .card.is-fav{border:2px solid #e74c3c} .card.is-fav .fav-badge{display:block}
 #loading{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.98);z-index:2000;display:flex;flex-direction:column;justify-content:center;align-items:center;transition:opacity .3s;pointer-events:none;opacity:0} #loading.show{opacity:1;pointer-events:all} .spinner{border:4px solid #f3f3f3;border-top:4px solid #2c3e50;border-radius:50%;width:30px;height:30px;animation:spin .8s linear infinite;margin-bottom:10px} @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
 .custom-popup .leaflet-popup-content-wrapper{padding:0;overflow:hidden;border-radius:12px} .custom-popup .leaflet-popup-content{margin:0;width:300px!important} .popup-hdr{padding:12px 15px;color:#fff;text-align:center;font-weight:700;font-size:1.1em;display:flex;justify-content:space-between;align-items:center} .popup-bd{padding:0 15px 10px;text-align:center}
 .info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0} .info-item{background:#f8f9fa;padding:8px 4px;border-radius:8px;font-size:.85em;display:flex;flex-direction:column;align-items:center} .info-val{font-weight:700;font-size:1.1em;color:#333} .w-arr{transition:transform .5s ease-out;color:#2980b9}
 .act-row{display:flex;gap:10px;margin-top:10px} .act-btn{flex:1;padding:8px;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:.9em;display:flex;align-items:center;justify-content:center;gap:5px} .btn-cp{background:#2ecc71;color:#fff} .btn-fv{background:#ecf0f1;color:#555} .btn-fv.active{background:#fadbd8;color:#c0392b}
 .chart-box{position:relative;height:120px;width:100%;margin-top:5px;display:none}
+#msg-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:3000;display:none;justify-content:center;align-items:center;padding:20px} .msg-box{background:#fff;width:100%;max-width:400px;border-radius:15px;padding:20px;position:relative} .msg-close{position:absolute;top:15px;right:20px;font-size:1.5rem;cursor:pointer;color:#999} .form-input{width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;margin-bottom:15px;box-sizing:border-box} .msg-submit{width:100%;background:#3498db;color:#fff;border:none;padding:12px;border-radius:8px;font-weight:700}
 </style>
 <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
 </head>
 <body>
 <header>
-    <div class="title-group"><h1><i class="fa-solid fa-wind"></i> 台灣空氣</h1><div class="sub-info"><span id="ut">更新中...</span><span id="busuanzi_container_site_pv" style="display:none"><i class="fa-solid fa-eye"></i> <span id="busuanzi_value_site_pv">--</span></span></div></div>
+    <div class="title-group"><h1><i class="fa-solid fa-location-dot"></i> 台灣空氣</h1><div class="sub-info"><span id="ut">更新中...</span><span id="busuanzi_container_site_pv" style="display:none"><i class="fa-solid fa-eye"></i> <span id="busuanzi_value_site_pv">--</span></span></div></div>
     <div class="view-switch"><button id="btn-map" class="btn active" onclick="setView('map')">地圖</button><button id="btn-list" class="btn" onclick="setView('list')">列表</button></div>
 </header>
 <div id="main">
     <div id="loading" class="show"><div class="spinner"></div><div id="lt">載入中...</div></div>
     <div id="map-view" style="width:100%;height:100%"></div>
-    <button class="gps-btn" onclick="locate()"><i class="fa-solid fa-crosshairs"></i></button>
+    <div class="float-btns"><button class="float-btn" onclick="openMsg()" style="color:#e67e22"><i class="fa-regular fa-comment-dots"></i></button><button class="float-btn" onclick="locate()"><i class="fa-solid fa-crosshairs"></i></button></div>
     <div id="list"><input type="text" id="sInput" class="search" placeholder="🔍 搜尋..." onkeyup="filter()"><div id="dash" class="grid"></div></div>
 </div>
+
+<div id="msg-modal"><div class="msg-box"><div class="msg-close" onclick="closeMsg()">&times;</div><h3>📬 留言給作者</h3><form onsubmit="sendMsg(event)"><input type="text" name="name" class="form-input" placeholder="稱呼 (選填)"><textarea name="message" class="form-input" style="height:100px" placeholder="留言內容" required></textarea><button type="submit" id="submit-btn" class="msg-submit">送出留言</button></form></div></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <script>
+// *** 請填回您的 Formspree ID ***
+const FORMSPREE_URL = "https://formspree.io/f/YOUR_FORMSPREE_ID";
+
 const KEY="d62dcdf1-adf6-49dd-9c9c-b65b1556323d", API=`https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key=${KEY}&$select=sitename,county,aqi,status,pm2.5,pm10,longitude,latitude,publishtime`;
 let map, markers, uMk, data=[], favs=[], chart, rendered=false;
 const el = (id) => document.getElementById(id);
-const getAQI = (v) => {
-    if(v<=50)return{c:'#009866',t:'良好'}; if(v<=100)return{c:'#FFDE33',t:'普通'};
-    if(v<=150)return{c:'#FF9933',t:'敏感'}; if(v<=200)return{c:'#CC0033',t:'不健康'};
-    if(v<=300)return{c:'#660099',t:'極差'}; return{c:'#7E0023',t:'危害'};
-};
+const getAQI = (v) => { if(v<=50)return{c:'#009866',t:'良好'}; if(v<=100)return{c:'#FFDE33',t:'普通'}; if(v<=150)return{c:'#FF9933',t:'敏感'}; if(v<=200)return{c:'#CC0033',t:'不健康'}; if(v<=300)return{c:'#660099',t:'極差'}; return{c:'#7E0023',t:'危害'}; };
 
 window.onload = () => {
     try { favs = JSON.parse(localStorage.getItem("AQI_FAV"))||[]; } catch{}
@@ -85,18 +90,14 @@ function drawMap(d){
         if(!s.latitude)return;
         let q=getAQI(s.aqi), isF=favs.includes(s.sitename);
         let m=L.circleMarker([s.latitude,s.longitude],{radius:7,fillColor:q.c,color:isF?'#e74c3c':'#fff',weight:isF?4:1.5,fillOpacity:.9});
-        m.sd=s; m.bindPopup(getPop(s,q),{className:'custom-popup'});
+        m.sd=s; m.bindPopup(getPop(s,q,false),{className:'custom-popup'});
         markers.addLayer(m);
     });
 }
 
 function drawList(d){
-    el('dash').innerHTML='';
-    let frag=document.createDocumentFragment();
-    d.sort((a,b)=>{
-        let fa=favs.includes(a.sitename), fb=favs.includes(b.sitename);
-        return (fa&&!fb)?-1:(!fa&&fb)?1:(b.aqi-a.aqi);
-    }).forEach(s=>{
+    el('dash').innerHTML=''; let frag=document.createDocumentFragment();
+    d.sort((a,b)=>{ let fa=favs.includes(a.sitename), fb=favs.includes(b.sitename); return (fa&&!fb)?-1:(!fa&&fb)?1:(b.aqi-a.aqi); }).forEach(s=>{
         let q=getAQI(s.aqi), isF=favs.includes(s.sitename), div=document.createElement('div');
         div.className=`card ${isF?'is-fav':''}`;
         div.onclick=(e)=>{ if(!e.target.closest('.fav-btn')){ setView('map'); let m; markers.eachLayer(l=>{if(l.sd.sitename==s.sitename)m=l}); if(m){map.setView(m.getLatLng(),13);m.openPopup()} } };
@@ -106,10 +107,11 @@ function drawList(d){
     el('dash').appendChild(frag); rendered=true;
 }
 
-function getPop(s,q){
+function getPop(s,q,isNear){
     let isF=favs.includes(s.sitename), id=`c-${Math.random().toString(36).substr(2,5)}`;
+    let lbl = isNear ? '<div style="background:#2c3e50;color:#fff;font-size:.8em;padding:2px 6px;border-radius:4px;display:inline-block;margin-bottom:5px">📍 最近測站</div>' : '';
     return `<div class="popup-hdr" style="background:${q.c};color:${s.aqi>50&&s.aqi<=100?'#333':'#fff'}"><span>${s.sitename}</span><span>AQI ${s.aqi}</span></div>
-    <div class="popup-bd"><div style="display:flex;justify-content:space-around;color:#666;font-size:.9em;margin:10px 0;border-bottom:1px dashed #eee;padding-bottom:10px"><span>PM2.5: <b>${s["pm2.5"]}</b></span><span>PM10: <b>${s.pm10}</b></span></div>
+    <div class="popup-bd"><div style="margin-top:10px">${lbl}</div><div style="display:flex;justify-content:space-around;color:#666;font-size:.9em;margin:5px 0 10px;border-bottom:1px dashed #eee;padding-bottom:10px"><span>PM2.5: <b>${s["pm2.5"]}</b></span><span>PM10: <b>${s.pm10}</b></span></div>
     <div id="i-${id}" class="info-grid"><i class="fa-solid fa-spinner fa-spin"></i></div>
     <div class="act-row"><button id="fb-${s.sitename}" class="act-btn btn-fv ${isF?'active':''}" onclick="togFav('${s.sitename}')"><i class="${isF?'fa-solid':'fa-regular'} fa-heart"></i> ${isF?'已收藏':'收藏'}</button><button class="act-btn btn-cp" onclick="cpRep()"><i class="fa-regular fa-copy"></i> 複製報告</button></div>
     <div class="chart-box" id="cb-${id}"><canvas id="${id}"></canvas></div></div>`;
@@ -131,7 +133,6 @@ async function loadDet(s){
         };
 
         el(`i-${id}`).innerHTML=`<div class="info-item"><div>氣溫/濕度</div><div class="info-val">${w.temperature_2m}° <small>${w.relative_humidity_2m}%</small></div></div><div class="info-item"><div>UV指數</div><div class="info-val" style="color:${w.uv_index>6?'#e74c3c':w.uv_index>3?'#f39c12':'#27ae60'}">${w.uv_index}</div></div><div class="info-item"><div>風向</div><div style="display:flex;align-items:center"><i class="fa-solid fa-location-arrow w-arr" style="transform:rotate(${w.wind_direction_10m+180}deg)"></i> <b>${w.wind_speed_10m}</b></div></div>`;
-        
         el(`cb-${id}`).style.display='block';
         if(chart)chart.destroy();
         chart=new Chart(el(id).getContext('2d'),{type:'line',data:{labels:h.time.slice(-24).map(t=>t.slice(11,16)),datasets:[{data:h.pm2_5.slice(-24),borderColor:'#3498db',borderWidth:2,fill:true,backgroundColor:'rgba(52,152,219,.1)',pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:false},scales:{x:{display:false},y:{display:true}}}});
@@ -146,9 +147,8 @@ function togFav(n){
 }
 
 function setView(m){
-    el('map-view').style.display=m=='map'?'block':'none';
-    el('list').style.display=m=='list'?'block':'none';
-    document.querySelector('.gps-btn').style.display=m=='map'?'flex':'none';
+    el('map-view').style.display=m=='map'?'block':'none'; el('list').style.display=m=='list'?'block':'none';
+    document.querySelector('.float-btns').style.display=m=='map'?'flex':'none';
     el('btn-map').className=`btn ${m=='map'?'active':''}`; el('btn-list').className=`btn ${m=='list'?'active':''}`;
     if(m=='map') map.invalidateSize(); else if(!rendered) drawList(data);
 }
@@ -157,12 +157,38 @@ function filter(){ drawList(data.filter(d=>d.sitename.includes(el('sInput').valu
 function locate(){
     navigator.geolocation.getCurrentPosition(p=>{
         map.setView([p.coords.latitude,p.coords.longitude],14);
-        let nr=data.reduce((prev,curr)=>{
-            let d=map.distance([p.coords.latitude,p.coords.longitude],[curr.latitude,curr.longitude]);
-            return d<prev.d?{d:d,s:curr}:prev;
-        },{d:Infinity,s:null}).s;
-        if(nr){ if(uMk)map.removeLayer(uMk); uMk=L.marker([p.coords.latitude,p.coords.longitude]).addTo(map).bindPopup("📍 您在這裡").openPopup(); }
+        let res = data.reduce((acc, curr) => {
+            let d = map.distance([p.coords.latitude, p.coords.longitude], [curr.latitude, curr.longitude]);
+            return d < acc.d ? {d: d, s: curr} : acc;
+        }, {d: Infinity, s: null});
+        let nr = res.s;
+        if(nr){
+            if(uMk) map.removeLayer(uMk);
+            // V19修復：使用 divIcon 顯示藍色小人，並綁定最近測站資料
+            uMk = L.marker([p.coords.latitude,p.coords.longitude], {
+                icon: L.divIcon({className:'user-loc', html:'<i class="fa-solid fa-street-view" style="color:#2980b9;font-size:36px;text-shadow:2px 2px 2px #fff"></i>', iconSize:[36,36], iconAnchor:[18,36], popupAnchor:[0,-35]})
+            }).addTo(map);
+            uMk.sd = nr; // 綁定數據以便 loadDet 抓取天氣
+            let q = getAQI(nr.aqi);
+            uMk.bindPopup(getPop(nr, q, true), {className:'custom-popup'}).openPopup();
+            // 延遲載入詳細資料
+            setTimeout(() => loadDet(nr), 200);
+        }
     },()=>alert("定位失敗"));
+}
+
+function openMsg(){ el('msg-modal').style.display='flex'; }
+function closeMsg(){ el('msg-modal').style.display='none'; }
+async function sendMsg(e){
+    e.preventDefault();
+    if(FORMSPREE_URL.includes("YOUR_FORMSPREE")) { alert("請先設定 Formspree ID"); return; }
+    let btn=el('submit-btn'); btn.disabled=true; btn.innerText="傳送中...";
+    try {
+        let fd = new FormData(e.target);
+        let r = await fetch(FORMSPREE_URL, {method:'POST', body:fd, headers: {'Accept': 'application/json'}});
+        if(r.ok) { alert("✅ 留言已送出！"); closeMsg(); e.target.reset(); } else { alert("❌ 傳送失敗"); }
+    } catch { alert("❌ 網路錯誤"); }
+    btn.disabled=false; btn.innerText="送出留言";
 }
 </script>
 </body>

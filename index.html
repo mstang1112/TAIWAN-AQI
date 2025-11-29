@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>台灣空氣 V12 (穩定版)</title>
+    <title>台灣空氣 V13 (中文專業版)</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+        body { font-family: "Microsoft JhengHei", "Heiti TC", sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
         
         header { background-color: #2c3e50; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000;}
         .title-group { display: flex; flex-direction: column; }
@@ -41,30 +41,25 @@
         
         #loading { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.98); z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; transition: opacity 0.3s; pointer-events: none; opacity: 0; }
         #loading.show { opacity: 1; pointer-events: all; }
-        
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #2c3e50; border-radius: 50%; width: 30px; height: 30px; animation: spin 0.8s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .bg-good { background: #009866; } .bg-mod { background: #FFDE33; color: #333 !important; }
-        .bg-sen { background: #FF9933; } .bg-un { background: #CC0033; }
-        .bg-very { background: #660099; } .bg-haz { background: #7E0023; }
-
         /* Popup 優化 */
         .custom-popup .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 12px; }
-        .custom-popup .leaflet-popup-content { margin: 0; width: 290px !important; }
-        .popup-header { padding: 10px 15px; color: white; text-align: center; font-weight: bold; font-size: 1.1em; display: flex; justify-content: space-between; align-items: center;}
+        .custom-popup .leaflet-popup-content { margin: 0; width: 300px !important; }
+        .popup-header { padding: 12px 15px; color: white; text-align: center; font-weight: bold; font-size: 1.1em; display: flex; justify-content: space-between; align-items: center;}
         .popup-body { padding: 0 15px 15px 15px; text-align: center; }
         
-        .decision-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin: 10px 0; }
-        .decision-item { background: #f8f9fa; padding: 6px 2px; border-radius: 8px; font-size: 0.8em; display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .d-icon { font-size: 1.3em; margin-bottom: 3px; }
-        .d-title { color: #888; font-size: 0.85em; }
-        .d-status { font-weight: bold; font-size: 0.95em; margin-top: 1px;}
-        .st-ok { color: #27ae60; } .st-warn { color: #f39c12; } .st-bad { color: #c0392b; }
+        /* 儀表板 grid */
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 10px 0; }
+        .info-item { background: #f8f9fa; padding: 8px 4px; border-radius: 8px; font-size: 0.85em; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative;}
+        .info-label { color: #888; font-size: 0.8em; margin-bottom: 2px; }
+        .info-val { font-weight: bold; font-size: 1.1em; color: #333; }
+        .wind-arrow { transform-origin: center; display: inline-block; transition: transform 0.5s ease-out; color: #2980b9;}
 
-        .pollutant-row { display: flex; justify-content: space-around; color: #666; font-size: 0.9em; margin-bottom: 8px; border-bottom: 1px dashed #eee; padding-bottom: 8px;}
+        .pollutant-row { display: flex; justify-content: space-around; color: #666; font-size: 0.9em; margin-bottom: 10px; border-bottom: 1px dashed #eee; padding-bottom: 10px;}
         
-        .chart-container { position: relative; height: 110px; width: 100%; margin-top: 5px; display: none; }
+        .chart-container { position: relative; height: 120px; width: 100%; margin-top: 5px; display: none; }
         .chart-loading { font-size: 0.8em; color: #999; margin-top: 10px; display: block;}
         
         .leaflet-control-layers { border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border: none; }
@@ -74,7 +69,7 @@
 
     <header>
         <div class="title-group">
-            <h1><i class="fa-solid fa-shield-halved"></i> 台灣空氣 V12</h1>
+            <h1><i class="fa-solid fa-wind"></i> 台灣空氣 V13</h1>
             <div id="update-time" class="update-time">等待更新...</div>
         </div>
         <div class="view-switch">
@@ -86,7 +81,7 @@
     <div id="main-container">
         <div id="loading" class="show">
             <div class="spinner"></div>
-            <div id="loading-text">連線中...</div>
+            <div id="loading-text">資料同步中...</div>
         </div>
         
         <div id="map-view" style="width: 100%; height: 100%;"></div>
@@ -106,12 +101,11 @@
 
     <script>
         const API_KEY = "d62dcdf1-adf6-49dd-9c9c-b65b1556323d"; 
-        // 使用 select 減少流量
         const API_FIELDS = "sitename,county,aqi,status,pm2.5,pm10,longitude,latitude,publishtime";
         const API_URL = `https://data.moenv.gov.tw/api/v2/aqx_p_432?language=zh&api_key=${API_KEY}&$select=${API_FIELDS}`;
         
-        const CACHE_KEY = "AQI_DATA_CACHE_V12";
-        const CACHE_TIME_KEY = "AQI_LAST_UPDATE_V12";
+        const CACHE_KEY = "AQI_DATA_CACHE_V13";
+        const CACHE_TIME_KEY = "AQI_LAST_UPDATE_V13";
 
         let map, markersLayer, userMarker;
         let allData = [];
@@ -119,12 +113,9 @@
         let currentChart = null;
 
         window.onload = () => {
-            // *** 關鍵修復：設置 4 秒強制逾時 ***
-            // 如果 4 秒內 API 沒回來，直接關閉載入畫面，讓使用者至少能看到地圖或舊資料
             setTimeout(() => {
                 const loading = document.getElementById('loading');
                 if(loading.classList.contains('show')) {
-                    console.warn("Force hiding loader");
                     loading.classList.remove('show');
                     document.getElementById('update-time').innerText = "連線逾時(顯示舊資料)";
                 }
@@ -132,43 +123,39 @@
 
             try {
                 initMap();
-                
                 const cachedData = loadFromCache();
                 if (cachedData) {
                     allData = cachedData;
                     renderMap(allData);
-                    document.getElementById('loading').classList.remove('show'); // 有快取立刻顯示
+                    document.getElementById('loading').classList.remove('show');
                     const lastTime = localStorage.getItem(CACHE_TIME_KEY);
                     if(lastTime) document.getElementById('update-time').innerText = `${lastTime} (快取)`;
                 }
-
                 fetchData(cachedData ? false : true);
                 setInterval(() => { fetchData(false); }, 600000); 
             } catch (e) {
                 console.error("Init Error", e);
-                alert("初始化失敗，請重新整理");
                 document.getElementById('loading').classList.remove('show');
             }
         };
 
         function initMap() {
-            const lightMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; CARTO', subdomains: 'abcd', maxZoom: 20
+            // 1. 標準中文地圖 (OpenStreetMap)
+            const osmMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OSM', maxZoom: 19
             });
-            const darkMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; CARTO', subdomains: 'abcd', maxZoom: 20
-            });
+            // 2. 衛星地圖
             const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 attribution: '&copy; Esri'
             });
 
+            // 預設使用 OSM (中文)
             map = L.map('map-view', { 
                 zoomControl: false, 
-                fadeAnimation: true,
-                layers: [lightMap] 
+                layers: [osmMap] 
             }).setView([23.7, 121.0], 7);
 
-            L.control.layers({ "✨ 簡約": lightMap, "🌙 暗黑": darkMap, "🛰️ 衛星": satelliteMap }).addTo(map);
+            L.control.layers({ "🗺️ 標準地圖 (中文)": osmMap, "🛰️ 衛星影像": satelliteMap }).addTo(map);
             L.control.zoom({ position: 'bottomleft' }).addTo(map);
             markersLayer = L.layerGroup().addTo(map);
 
@@ -183,37 +170,23 @@
         async function fetchData(showLoading) {
             const timeDisplay = document.getElementById('update-time');
             const loadingEl = document.getElementById('loading');
-            const loadingText = document.getElementById('loading-text');
-
-            if (showLoading) {
-                loadingEl.classList.add('show');
-                loadingText.innerText = "資料同步中...";
-            }
+            if (showLoading) loadingEl.classList.add('show');
             if (!showLoading) timeDisplay.innerText = "更新中...";
 
             try {
-                // 設定 fetch timeout 避免無限等待
                 const controller = new AbortController();
-                const id = setTimeout(() => controller.abort(), 10000); // 10秒 API 逾時
-
+                const id = setTimeout(() => controller.abort(), 10000);
                 const res = await fetch(`${API_URL}&t=${new Date().getTime()}`, { signal: controller.signal });
                 clearTimeout(id);
-
                 if (!res.ok) throw new Error("API Error");
                 const json = await res.json();
                 
                 if (json.records && json.records.length > 0) {
                     allData = json.records;
                     renderMap(allData);
-                    
-                    if (document.getElementById('list-view').style.display === 'block') {
-                        renderList(allData);
-                    } else {
-                        isListRendered = false;
-                    }
-
+                    if (document.getElementById('list-view').style.display === 'block') renderList(allData);
+                    else isListRendered = false;
                     saveToCache(allData);
-                    
                     const now = new Date();
                     const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
                     timeDisplay.innerText = `${timeString} 更新`;
@@ -221,7 +194,7 @@
                 }
             } catch (e) {
                 console.error(e);
-                timeDisplay.innerText = "更新失敗(請重整)";
+                timeDisplay.innerText = "更新失敗";
             } finally {
                 loadingEl.classList.remove('show');
             }
@@ -231,12 +204,12 @@
         function loadFromCache() { try { return JSON.parse(localStorage.getItem(CACHE_KEY)); } catch (e) { return null; } }
 
         function getAQIInfo(aqi) {
-            if (aqi <= 50) return { color: '#009866', class: 'bg-good', text: '良好' };
-            if (aqi <= 100) return { color: '#FFDE33', class: 'bg-mod', text: '普通' };
-            if (aqi <= 150) return { color: '#FF9933', class: 'bg-sen', text: '敏感' };
-            if (aqi <= 200) return { color: '#CC0033', class: 'bg-un', text: '不健康' };
-            if (aqi <= 300) return { color: '#660099', class: 'bg-very', text: '極差' };
-            return { color: '#7E0023', class: 'bg-haz', text: '危害' };
+            if (aqi <= 50) return { color: '#009866', text: '良好' };
+            if (aqi <= 100) return { color: '#FFDE33', text: '普通' };
+            if (aqi <= 150) return { color: '#FF9933', text: '敏感' };
+            if (aqi <= 200) return { color: '#CC0033', text: '不健康' };
+            if (aqi <= 300) return { color: '#660099', text: '極差' };
+            return { color: '#7E0023', text: '危害' };
         }
 
         function renderMap(data) {
@@ -246,9 +219,9 @@
                 if (!site.latitude || !site.longitude) return;
                 const aqi = parseInt(site.aqi);
                 const info = getAQIInfo(aqi);
-                
+                // 調整：稍微縮小圓點，讓地圖文字更清楚
                 const marker = L.circleMarker([site.latitude, site.longitude], {
-                    radius: 7, fillColor: info.color, color: '#fff', weight: 2, fillOpacity: 0.9
+                    radius: 6, fillColor: info.color, color: '#fff', weight: 1.5, fillOpacity: 0.9
                 });
                 marker.stationData = site;
                 marker.bindPopup(generatePopupContent(site, info, false), { className: 'custom-popup' });
@@ -259,19 +232,25 @@
         function generatePopupContent(site, info, isNearestLabel) {
             const labelHtml = isNearestLabel ? `<div class="nearest-badge" style="background:#2c3e50;color:white;padding:2px 6px;border-radius:4px;font-size:0.8em;display:inline-block;margin-bottom:5px;">📍 離您最近</div><br>` : '';
             const canvasId = `chart-${Math.random().toString(36).substr(2, 5)}`;
-            const decisionId = `decision-${canvasId}`;
+            const infoId = `info-${canvasId}`;
             return `
                 <div class="popup-header" style="background:${info.color}; color:${parseInt(site.aqi)>50 && parseInt(site.aqi)<=100 ? '#333':'#fff'}">
                     <span>${site.sitename}</span> <span>AQI ${site.aqi}</span>
                 </div>
                 <div class="popup-body">
                     <div style="margin-top:10px;">${labelHtml}</div>
-                    <div class="pollutant-row"><span>PM2.5: <b>${site["pm2.5"]}</b></span><span>PM10: <b>${site.pm10}</b></span></div>
-                    <div id="${decisionId}" class="decision-grid">
-                        <div class="decision-item"><i class="fa-solid fa-spinner fa-spin"></i></div>
-                        <div class="decision-item"><i class="fa-solid fa-spinner fa-spin"></i></div>
-                        <div class="decision-item"><i class="fa-solid fa-spinner fa-spin"></i></div>
+                    
+                    <div class="pollutant-row">
+                        <span>PM2.5: <b>${site["pm2.5"]}</b></span>
+                        <span>PM10: <b>${site.pm10}</b></span>
                     </div>
+
+                    <div id="${infoId}" class="info-grid">
+                        <div class="info-item"><i class="fa-solid fa-spinner fa-spin"></i></div>
+                        <div class="info-item"><i class="fa-solid fa-spinner fa-spin"></i></div>
+                        <div class="info-item"><i class="fa-solid fa-spinner fa-spin"></i></div>
+                    </div>
+
                     <div style="margin-top:5px;">
                         <div style="font-size:0.8em; font-weight:bold; color:#ccc; text-align:left;">24h 趨勢</div>
                         <div id="loading-${canvasId}" class="chart-loading">載入中...</div>
@@ -286,15 +265,16 @@
             if (!canvas) return;
             
             const canvasId = canvas.id;
-            const decisionId = `decision-${canvasId}`;
+            const infoId = `info-${canvasId}`;
             const loadingDiv = document.getElementById(`loading-${canvasId}`);
             const containerDiv = document.getElementById(`container-${canvasId}`);
-            const decisionDiv = document.getElementById(decisionId);
+            const infoDiv = document.getElementById(infoId);
 
             try {
                 const lat = site.latitude;
                 const lon = site.longitude;
-                const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,cloud_cover,is_day&timezone=auto`;
+                // V13 請求：新增 uv_index, wind_direction_10m
+                const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,uv_index&timezone=auto`;
                 const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&timezone=auto&past_days=1&forecast_days=0`;
                 
                 const [resWeather, resAqi] = await Promise.all([fetch(weatherUrl), fetch(aqiUrl)]);
@@ -302,30 +282,41 @@
                 const aqiJson = await resAqi.json();
 
                 const w = weatherJson.current;
-                const aqi = parseInt(site.aqi);
-                const pm25 = parseFloat(site["pm2.5"]);
+                
+                // --- 數據呈現邏輯 ---
+                // 1. 溫濕度
+                const tempHtml = `<div class="info-item">
+                    <div class="info-label">氣溫/濕度</div>
+                    <div class="info-val" style="font-size:1em;">${w.temperature_2m}° <span style="font-size:0.8em;color:#777;">${w.relative_humidity_2m}%</span></div>
+                </div>`;
 
-                let ventStatus = { icon: 'fa-wind', title: '換氣', text: '適宜', class: 'st-ok' };
-                if (aqi > 100 || pm25 > 35) ventStatus = { icon: 'fa-xmark', title: '換氣', text: '關窗', class: 'st-bad' };
-                else if (w.relative_humidity_2m > 80) ventStatus = { icon: 'fa-droplet-slash', title: '換氣', text: '潮濕', class: 'st-warn' };
-                else if (w.temperature_2m > 30) ventStatus = { icon: 'fa-thermometer-full', title: '換氣', text: '防熱', class: 'st-warn' };
+                // 2. UV 指數
+                let uvClass = "#27ae60"; // 低
+                if(w.uv_index > 3) uvClass = "#f39c12"; // 中
+                if(w.uv_index > 6) uvClass = "#e74c3c"; // 高
+                if(w.uv_index > 8) uvClass = "#8e44ad"; // 極高
+                const uvHtml = `<div class="info-item">
+                    <div class="info-label">紫外線 UV</div>
+                    <div class="info-val" style="color:${uvClass}">${w.uv_index}</div>
+                </div>`;
 
-                let uvStatus = { icon: 'fa-shirt', title: '曬衣', text: '適合', class: 'st-ok' };
-                if (w.is_day === 0) uvStatus = { icon: 'fa-moon', title: '曬衣', text: '天黑', class: 'st-warn' };
-                else if (w.cloud_cover > 80) uvStatus = { icon: 'fa-cloud', title: '曬衣', text: '多雲', class: 'st-warn' };
-                else if (aqi > 150) uvStatus = { icon: 'fa-ban', title: '曬衣', text: '易髒', class: 'st-bad' };
+                // 3. 風向羅盤 (V13 Feature)
+                // wind_direction 是 0~360 度，0 是北風，180 是南風。我們用 CSS rotate 來轉箭頭。
+                // 為了讓箭頭指向風的「去向」，通常氣象學箭頭是指向風吹來的方向，
+                // 但為了直觀，我們顯示「箭頭往哪飛」。如果 0 度(北風=從北吹來)，箭頭應指向南(180)。
+                // 這裡我們做一個指北針式的：箭頭永遠指向上方(0度)，我們旋轉箭頭本身。
+                // 讓箭頭指向風「吹來」的方向 (Wind Origin)
+                const windHtml = `<div class="info-item">
+                    <div class="info-label">風向/風速</div>
+                    <div style="display:flex; align-items:center; gap:5px;">
+                        <i class="fa-solid fa-location-arrow wind-arrow" style="transform: rotate(${w.wind_direction_10m + 180}deg);"></i>
+                        <span style="font-weight:bold; font-size:1em;">${w.wind_speed_10m}</span>
+                    </div>
+                </div>`;
 
-                let runStatus = { icon: 'fa-person-running', title: '運動', text: '可以', class: 'st-ok' };
-                if (aqi > 150) runStatus = { icon: 'fa-mask', title: '運動', text: '禁止', class: 'st-bad' };
-                else if (aqi > 100) runStatus = { icon: 'fa-person-walking', title: '運動', text: '輕度', class: 'st-warn' };
-                else if (w.temperature_2m > 33) runStatus = { icon: 'fa-temperature-arrow-up', title: '運動', text: '中暑', class: 'st-bad' };
+                infoDiv.innerHTML = tempHtml + uvHtml + windHtml;
 
-                decisionDiv.innerHTML = `
-                    <div class="decision-item"><i class="fa-solid ${ventStatus.icon} d-icon ${ventStatus.class}"></i><div class="d-title">${ventStatus.title}</div><div class="d-status ${ventStatus.class}">${ventStatus.text}</div></div>
-                    <div class="decision-item"><i class="fa-solid ${uvStatus.icon} d-icon ${uvStatus.class}"></i><div class="d-title">${uvStatus.title}</div><div class="d-status ${uvStatus.class}">${uvStatus.text}</div></div>
-                    <div class="decision-item"><i class="fa-solid ${runStatus.icon} d-icon ${runStatus.class}"></i><div class="d-title">${runStatus.title}</div><div class="d-status ${runStatus.class}">${runStatus.text}</div></div>
-                `;
-
+                // 圖表
                 const len = aqiJson.hourly.time.length;
                 const labels = aqiJson.hourly.time.slice(len-24, len).map(t => t.slice(11, 16));
                 const dataPoints = aqiJson.hourly.pm2_5.slice(len-24, len);
@@ -345,7 +336,7 @@
                         scales: { x: { display: false }, y: { display: true, ticks: { font: {size: 9} } } }
                     }
                 });
-            } catch (e) { console.error(e); if(decisionDiv) decisionDiv.innerText = "N/A"; }
+            } catch (e) { console.error(e); if(infoDiv) infoDiv.innerText = "N/A"; }
         }
 
         function renderList(data) {
@@ -361,7 +352,7 @@
                 card.innerHTML = `
                     <div class="card-header"><strong>${site.sitename}</strong><span style="font-size:0.8em; color:#888">${site.county}</span></div>
                     <div class="card-aqi" style="color:${info.color === '#FFDE33' ? '#d4b106' : info.color}">${site.aqi}</div>
-                    <div class="card-status ${info.class}" style="color:white; padding:2px 8px; border-radius:10px;">${info.text}</div>
+                    <div class="card-status" style="background:${info.color}; color:white; padding:2px 8px; border-radius:10px;">${info.text}</div>
                 `;
                 fragment.appendChild(card);
             });
@@ -394,7 +385,7 @@
                 const info = getAQIInfo(aqi);
                 const card = document.createElement('div');
                 card.className = 'card';
-                card.innerHTML = `<div class="card-header"><strong>${site.sitename}</strong><span style="font-size:0.8em; color:#888">${site.county}</span></div><div class="card-aqi" style="color:${info.color === '#FFDE33' ? '#d4b106' : info.color}">${site.aqi}</div><div class="card-status ${info.class}" style="color:white; padding:2px 8px; border-radius:10px;">${info.text}</div>`;
+                card.innerHTML = `<div class="card-header"><strong>${site.sitename}</strong><span style="font-size:0.8em; color:#888">${site.county}</span></div><div class="card-aqi" style="color:${info.color === '#FFDE33' ? '#d4b106' : info.color}">${site.aqi}</div><div class="card-status" style="background:${info.color}; color:white; padding:2px 8px; border-radius:10px;">${info.text}</div>`;
                 fragment.appendChild(card);
             });
             dashboard.appendChild(fragment);
